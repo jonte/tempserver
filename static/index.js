@@ -126,102 +126,120 @@ function Pump (props) {
     );
 }
 
-function Sensor (props) {
-    function HeatIcon (props) {
-        return (
-                <span className={"icon is-large " + (props.active ? "has-text-danger" : "")}>
-                    <i className="fas fa-3x fa-fire" />
-                </span>
-        );
+class SimpleLineChart extends React.Component {
+    constructor (props) {
+        super(props);
+        this.state = {"chart": []};
     }
 
-    function HeatGauge (props) {
-        var color = "is-primary";
-
-        if (props.temp >= 90) {
-            color = "is-danger";
-        } else if (props.temp >= 75) {
-            color = "is-warning";
+    componentDidMount() {
+        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/chart_stream");
+        this.eventSource.onmessage = e => {
+            this.setState({"chart": this.state.chart.concat(JSON.parse(e.data))})
         }
+    }
+
+    render () {
+        const tickFormatter = (time) => {
+            return new Date(time * 1e3).toISOString().slice(-13, -5);
+        };
+
+        let temp = (t) => {return t.temperature.temperature};
+        let sp = (t) => {return t.setpoint.temperature};
+        let heater_level = (t) => {return t.heater_level.power};
+
+        return (
+            <LineChart width={600} height={250} data={this.state.chart}>
+               <XAxis dataKey="date" tickFormatter={tickFormatter} angle={-45} textAnchor="end" height={65}/>
+               <YAxis />
+               <YAxis yAxisId="right" orientation="right" />
+               <CartesianGrid strokeDasharray="3 3"/>
+               <Line type="monotone" dataKey={temp} stroke="#8884d8" isAnimationActive={false} dot={false} type="number"/>
+               <Line type="monotone" dataKey={sp} stroke="red" strokeDasharray="3 3" isAnimationActive={false} dot={false}/>
+               <Line yAxisId="right" type="monotone" dataKey={heater_level} stroke="#84d895" isAnimationActive={false} dot={false}/>
+          </LineChart>
+        );
+    }
+}
+
+class HeatGauge extends React.Component {
+    constructor (props) {
+        super(props);
+        this.state = {"output": 0};
+    }
+
+    componentDidMount() {
+//        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/PID_stream");
+//        this.eventSource.onmessage = e => {
+//            this.setState({"output": JSON.parse(e.data).output})
+//        }
+    }
+
+    render () {
+        var color = "is-primary";
 
         return (
             <progress
             className={"progress " + color}
-            value={props.level}
+            value={this.state.output}
             max="100" />
         );
     }
+}
 
-    function HeatLabel (props) {
-        return (
-            <div>
-                <p className="heading">{props.name}</p>
-                <p className="title">{props.temp}&#8451;</p>
-            </div>
-        );
+class TemperatureLabel extends React.Component {
+    constructor (props) {
+        super(props);
+        this.state = {
+            "temperature": "?",
+            "unit": "C",
+        };
     }
 
-    class SimpleLineChart extends React.Component {
-        render () {
-
-            const tickFormatter = (time) => {
-                return new Date(time * 1e3).toISOString().slice(-13, -5);
-            };
-
-            return (
-                <LineChart width={600} height={250} data={props.sensorValue.tempHistory}>
-                   <XAxis dataKey="date" tickFormatter={tickFormatter} angle={-45} textAnchor="end" height={65}/>
-                   <YAxis />
-                   <CartesianGrid strokeDasharray="3 3"/>
-                   <ReferenceLine y={props.sensorValue.setpoint} label="Måltemp." stroke="red" strokeDasharray="3 3" />
-                   <Line type="monotone" dataKey="temp" stroke="#8884d8" isAnimationActive={false} dot={false}/>
-              </LineChart>
-            );
+    componentDidMount() {
+        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/temperature_stream");
+        this.eventSource.onmessage = e => {
+            console.log("Event from " + this.props.name)
+            this.setState(JSON.parse(e.data));
         }
     }
 
-
-    return (
-        <div className="has-text-centered">
-            <div className="box">
-                <HeatLabel name={props.sensorValue.name}
-                           temp={props.sensorValue.temp} />
-                <HeatGauge level={props.heater.level} />
-                <HeatIcon active={props.heater.active} />
-                <SimpleLineChart />
-                <p className="heading">Måltemp: {props.sensorValue.setpoint}</p>
+    render () {
+        return (
+            <div>
+                <p className="heading">{this.props.name}</p>
+                <p className="title">{this.state.temperature}&#xB0;{this.state.unit}</p>
             </div>
-        </div>
-    );
+        );
+    }
+}
+
+class Vessel extends React.Component {
+    constructor (props) {
+        super(props);
+        this.state = props.vessel;
+    }
+
+    render() {
+        return (
+            <div className="has-text-centered">
+                <div className="box">
+                    <TemperatureLabel name={this.state.name} id={this.state.id}/>
+                    <HeatGauge id={this.state.id}/>
+                    <SimpleLineChart id={this.state.id} />
+                    <p className="heading">Måltemp: {this.state.pid_state.setpoint.temperature}°{this.state.pid_state.setpoint.unit}</p>
+                </div>
+            </div>
+        );
+    }
 }
 
 class ControlPanel extends React.Component {
     constructor (props) {
         super(props);
         this.state = {
-            "sensors": {},
-            "heaters": {},
-            "pumps": {},
-            "coolers": {}
+            "vessels": [],
         };
-    }
-
-    getSensor(sensor_id) {
-        if (sensor_id in this.state.sensors) {
-            return this.state.sensors[sensor_id];
-        } else {
-            console.warn("Sensor id: '"+sensor_id+"' does not exist");
-            return 0;
-        }
-    }
-
-    getHeater(heater_id) {
-        if (heater_id in this.state.heaters) {
-            return this.state.heaters[heater_id];
-        } else {
-            console.warn("Heater id: '"+heater_id+"' does not exist");
-            return 0;
-        }
     }
 
     getPump(pump_id) {
@@ -231,13 +249,6 @@ class ControlPanel extends React.Component {
             console.warn("Pump id: '"+pump_id+"' does not exist");
             return 0;
         }
-    }
-
-    renderSensor(sensor_id) {
-        return (<Sensor
-                    heater={this.getHeater(sensor_id)}
-                    sensorValue={this.getSensor(sensor_id)}
-                    />)
     }
 
     renderPump(pump_id) {
@@ -273,57 +284,31 @@ class ControlPanel extends React.Component {
                         setHeaterSetpoint(heater_id, event.target.value, stateCb);
                     }}
                     handleAutomationStateChangeReq = {(new_state) => {
-                        var sensor = this.getSensor(heater_id);
+                        var sensor = this.getVessel(heater_id);
                         setSensorAutomationState(heater_id, new_state, stateCb);
                     }}
-                    setpoint = {this.getSensor(heater_id).setpoint}
-                    heating_stages = {this.getSensor(heater_id).heating_stages}
+                    setpoint = {this.getVessel(heater_id).setpoint}
+                    heating_stages = {this.getVessel(heater_id).heating_stages}
                 />
         );
     }
 
-    componentDidMount() {
-        fetchState((response) => {this.setState(response.data)});
+    updateVessels(vessels) {
+        this.setState({"vessels": vessels});
+    }
 
-        setInterval(() => {
-            fetchState((response) => {this.setState(response.data)});
-        }, 5000);
+    componentDidMount() {
+        fetchVessels((response) => {this.updateVessels(response.data)});
     }
 
     render() {
         return (
             <div>
-                <div className="tile is-ancestor">
-                    <div className="tile is-vertical is-parent">
-                        <div className="tile is-parent">
-                            <div className="tile is-4 is-child">
-                                {this.renderSensor("bk")}
-                            </div>
-                            <div className="tile is-4 is-child">
-                                {this.renderSensor("hlt")}
-                            </div>
-                            <div className="tile is-4 is-child">
-                                {this.renderSensor("mlt")}
-                            </div>
-                        </div>
-                        <div className="tile is-parent">
-                            <div className="tile is-4 is-child">
-                                {this.renderPump("mlt")}
-                            </div>
-                        </div>
-                        <div className="tile is-parent">
-                            <div className="tile is-3 is-child">
-                                {this.renderHeater("mlt")}
-                            </div>
-                            <div className="tile is-3 is-child">
-                                {this.renderHeater("hlt")}
-                            </div>
-                            <div className="tile is-3 is-child">
-                                {this.renderHeater("bk")}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                {
+                    this.state.vessels.map((vessel, i) => {
+                        return <Vessel key={i} vessel={vessel}/>
+                    })
+                }
             </div>
         );
     }
@@ -334,8 +319,8 @@ ReactDOM.render(
   document.getElementById('root')
 );
 
-function fetchState(cb) {
-    return axios.get("/state")
+function fetchVessels(cb) {
+    return axios.get("/v1/vessel")
     .then(function (response) {
         cb(response);
     }).catch(function (error) {

@@ -1,34 +1,46 @@
 import logging
 from gpiozero import PWMOutputDevice
+from enum import Enum
+
+class HeaterMode(Enum):
+    PID = "pid"
+    OFF = "off"
+    ON = "on"
 
 class Heater:
-    def __init__(self, gpio_pin, name = "Unknown", is_manual = False, sensor=None):
+    def __init__(self, gpio_pin, name = "Unknown", is_manual = False, sensor=None, pid = None, scheduler = None):
         self.heating = False
-        self.enabled = False
+        self.mode = HeaterMode.OFF
         self.name = name
         self.is_manual = is_manual
-        self.heating_element = PWMOutputDevice(gpio_pin, frequency = (1.0 / 10))
+        self.heating_element = PWMOutputDevice(gpio_pin, frequency = 1)
         self.sensor = sensor
+        self.pid = pid
+        self.scheduler = scheduler
+        self.scheduler.add_job(self.process_pid, 'interval', seconds=1, id="pid_iteration %s" % name)
 
-    def _set_enabled_state(self, enabled_state):
-        if not enabled_state:
+    def _set_mode(self, mode):
+        if mode == HeaterMode.OFF:
             self.stop_heating()
 
-        self.enabled = enabled_state
+        self.mode = mode
+
+    def enable_pid(self):
+        self._set_mode(HeaterMode.PID)
 
     def enable(self):
-        self._set_enabled_state(True)
+        self._set_mode(HeaterMode.ON)
 
     def disable(self):
-        self._set_enabled_state(False)
+        self._set_mode(HeaterMode.OFF)
 
     def _set_heating_level(self, level):
-        if not self.enabled and level > 0:
+        if (self.mode != HeaterMode.OFF) and level > 0:
             return "Heater not enabled"
 
         self.heating_element.value = level
 
-        logging.info("Heating element level: %f" % level)
+        logging.info("Heating element %s level: %f" % (self.name, level))
         self.heating = (level > 0)
 
     def stop_heating(self):
@@ -36,3 +48,6 @@ class Heater:
 
     def start_heating(self, level):
         return self._set_heating_level(level)
+
+    def process_pid(self):
+        self._set_heating_level(self.pid.output/100.0)

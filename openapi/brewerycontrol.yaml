@@ -1,0 +1,274 @@
+swagger: "2.0"
+info:
+  description: "Brewery control panel API"
+  version: "1.0.0"
+  title: "Brewery Control Panel"
+  contact:
+    email: "jonatan.p@gmail.com"
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
+basePath: "/v1"
+tags:
+- name: "vessel"
+  description: "Enumeration and manipulation of vessels"
+- name: "fermenter"
+  description: "Heating control of fermenters"
+schemes:
+- "http"
+paths:
+  /vessel:
+    get:
+      tags:
+      - "vessel"
+      summary: "Enumerate vessels"
+      description: "Enumerate all vessels"
+      operationId: "service.get_vessel"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Vessel"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/chart_stream:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get chart for vessel as a stream"
+      operationId: "service.get_vessel_chart_stream"
+      produces:
+      - "text/event-stream"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        description: "ID of vessel to tune PID for"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/Chart"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/chart:
+    post:
+      tags:
+      - "vessel"
+      summary: "Get chart for vessel"
+      operationId: "service.post_vessel_chart"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        description: "ID of vessel to tune PID for"
+        required: true
+        type: "string"
+      - name: "window"
+        in: "body"
+        description: "Return only this subset of chart data"
+        schema:
+          $ref: "#/definitions/ChartWindow"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Chart"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/temperature:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get temperature for vessel"
+      operationId: "service.get_vessel_temperature"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/Temperature"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/temperature_stream:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get temperature for vessel as a stream"
+      operationId: "service.get_vessel_temperature_stream"
+      produces:
+      - "text/event-stream"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/Temperature"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/PID_stream:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get the current tuning of the PID of this vessel as a stream"
+      description: ""
+      operationId: "service.get_vessel_pid_stream"
+      produces:
+      - "text/event-stream"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        description: "ID of vessel to tune PID for"
+        required: true
+        type: "string"
+      responses:
+        200:
+            description: "Current PID state"
+            schema:
+                $ref: "#/definitions/PIDState"
+        400:
+          description: "Invalid vessel ID supplied"
+        404:
+          description: "Vessel not found"
+
+securityDefinitions:
+  api_key:
+    type: "apiKey"
+    name: "api_key"
+    in: "header"
+    x-apikeyInfoFunc: service.verify_api_key
+
+definitions:
+  Vessel:
+    type: "object"
+    required:
+      - "id"
+      - "name"
+    properties:
+      id:
+        type: "string"
+        example: "hlt"
+      name:
+        type: "string"
+        example: "Hot Liquor Tank"
+      temperature:
+          $ref: "#/definitions/Temperature"
+      pid_state:
+          $ref: "#/definitions/PIDState"
+  PIDTuning:
+    type: "object"
+    required:
+      - "Kp"
+      - "Ki"
+      - "Kd"
+    properties:
+      Kp:
+        type: "number"
+        format: "float"
+        example: 22
+      Ki:
+        type: "number"
+        format: "float"
+        example: 0.1
+      Kd:
+        type: "number"
+        format: "float"
+        example: 80
+  PIDState:
+    type: "object"
+    required:
+      - "components"
+      - "tunings"
+      - "output"
+      - "setpoint"
+    properties:
+      components:
+        $ref: "#/definitions/PIDTuning"
+      tunings:
+        $ref: "#/definitions/PIDTuning"
+      output:
+        $ref: "#/definitions/Power"
+      setpoint:
+        $ref: "#/definitions/Temperature"
+  Chart:
+    type: "array"
+    items:
+      $ref: "#/definitions/ChartEntry"
+  ChartEntry:
+    type: "object"
+    properties:
+      temperature:
+          $ref: "#/definitions/Temperature"
+      heater_level:
+          $ref: "#/definitions/Power"
+      date:
+          $ref: "#/definitions/UnixDate"
+      setpoint:
+        $ref: "#/definitions/Temperature"
+  Temperature:
+    type: "object"
+    properties:
+      temperature:
+        type: "number"
+        format: "float"
+        example: "80.1"
+      unit:
+        type: "string"
+        example: "C"
+        enum:
+            - "C"
+            - "F"
+  UnixDate:
+        type: "integer"
+        format: "UNIX date time"
+        example: "1565944408"
+  Power:
+    type: "integer"
+    minimum: 0
+    maximum: 100
+    example: "75"
+    description: "Power level, expressed as a percentage. 75 means the heater will operate on 75% efficiency."
+  VesselMode:
+    type: "string"
+    enum: ["off", "pid", "on"]
+    description: "Mode of operation for this vessel. Off means the vessel will never heat, pid means the vessel is controlled by its PID controller, on means the vessel is enabled and heats at full power"
+  ChartWindow:
+    type: "object"
+    properties:
+      start:
+        description: "Window start - don't show entries before this index"
+        type: "integer"
+        minimum: 0
+        format: "int64"
+        example: 5000
+      end:
+        description: "Window end - don't show entries after this index"
+        type: "integer"
+        minimum: 0
+        format: "int64"
+        example: 5000
+      max_entries:
+        description: "Return at most this many entries. For windows larger than this number, sparse data, with intermediate data points omitted, will be returned."
+        type: "integer"
+        minimum: 0
+        format: "int64"
+        example: 5000
+

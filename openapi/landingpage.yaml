@@ -1,0 +1,25 @@
+swagger: "2.0"
+info:
+  description: "Brewery control panel landing page"
+  version: "1.0.0"
+  title: "Brewery Control Panel"
+  contact:
+    email: "jonatan.p@gmail.com"
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
+schemes:
+- "http"
+paths:
+  /:
+    get:
+      operationId: "service.get_landing_page"
+      produces:
+      - "text/html"
+      responses:
+        200:
+          description: "Landing page"
+        400:
+          description: "Invalid vessel ID supplied"
+        404:
+          description: "Vessel not found"
