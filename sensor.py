@@ -1,16 +1,16 @@
-import logging
-from w1thermsensor import W1ThermSensor
-from gpiozero import LED
-import time
+import logging, os, time
 from collections import deque
 from temperature import Temperature
 from power import Power
-from temperature import Temperature
-import time
 from jsonencoding import Encoder
 
+if os.environ.get("DUMMY", False):
+    from w1thermsensor_dummy import W1ThermSensor
+else:
+    from w1thermsensor import W1ThermSensor
+
 class Sensor:
-    def __init__(self, start_temp = 0, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None):
+    def __init__(self, id = None, start_temp = 0, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None):
         self.temperature = Temperature(start_temp)
         self.name = name
         self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id)
@@ -20,6 +20,7 @@ class Sensor:
         self.automation_state = "STOPPED"
         self.scheduler = scheduler
         self.pid = pid
+        self.id = id
 #        scheduler.add_job(self.automation_iteration, 'interval', seconds=1)
         scheduler.add_job(self.update_temp, 'interval', seconds=5)
         if sensor_id == "":
@@ -88,13 +89,12 @@ class Sensor:
     def update_temp(self):
         before = time.time()
         self.temperature.temperature = self.w1_sensor.get_temperature()
-        self.tempHistory.append(
-                {
+        history_obj = {
                     "temperature": self.temperature,
                     "heater_level": Power(self.pid.output) if self.pid else 0,
                     "setpoint": Temperature(self.pid.setpoint) if self.pid else 0,
-                    "date": int(time.time())},
-                )
+                    "date": int(time.time())}
+        self.tempHistory.append(history_obj)
 
         if self.pid:
             self.pid.output = self.pid(self.temperature.temperature)

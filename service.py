@@ -7,7 +7,7 @@ import time
 from gpiozero import LED
 from apscheduler.schedulers.background import BackgroundScheduler
 from sensor import Sensor
-from heater import Heater
+from heater import (Heater, HeaterMode)
 from jsonencoding import Encoder
 from simple_pid import PID
 from vessel import Vessel
@@ -38,18 +38,21 @@ encoder = Encoder()
 
 mlt_sensor = Sensor(start_temp = 80,
                     name = "Mäskkärl",
+                    id = "mlt",
                     scheduler=apsched,
                     sensor_id=config.get("tempjs", "mlt_sensor", fallback=""),
                     pid = mlt_pid)
 
 hlt_sensor = Sensor(start_temp = 80,
                     name = "Hetvattenskärl",
+                    id = "hlt",
                     scheduler=apsched,
                     sensor_id=config.get("tempjs", "hlt_sensor", fallback=""),
                     pid = hlt_pid)
 
 bk_sensor = Sensor(start_temp = 100,
                    name = "Kokkärl",
+                   id = "bk",
                    scheduler=apsched,
                    sensor_id=config.get("tempjs", "bk_sensor", fallback=""),
                    pid = bk_pid)
@@ -99,6 +102,67 @@ def get_landing_page():
 def get_vessel():
     return list(state["vessels"].values())
 
+def get_stream():
+    memory = {}
+
+    def has_changed(memory, tag, new):
+        if tag not in memory:
+            memory[tag] = new
+            return True
+
+        change = (memory[tag] != new)
+        memory[tag] = new
+        return change
+
+    def stream_vessel_chart():
+        for vessel in state["vessels"].values():
+            tag = "vessel-chart-%s" % vessel.id
+            if vessel.sensor.tempHistory:
+                data = encoder.sse(tag, vessel.sensor.tempHistory[-1])
+                if has_changed(memory, tag, data):
+                    yield data
+
+    def stream_vessel_temperature():
+        for vessel in state["vessels"].values():
+            tag = "vessel-temperature-%s" % vessel.id
+            data = encoder.sse(tag, vessel.sensor.temperature)
+            yield data
+
+    def stream_vessel_power():
+        for vessel in state["vessels"].values():
+            tag = "vessel-power-%s" % vessel.id
+            data = encoder.sse(tag, vessel.heater.heating_element.value * 100)
+            yield data
+
+    def stream_vessel_heater():
+        for vessel in state["vessels"].values():
+            tag = "vessel-heater-%s" % vessel.id
+            data = encoder.sse(tag, vessel.heater)
+            yield data
+
+    def stream_vessel_list():
+        tag = "vessels"
+        data = encoder.sse("vessels", list(state["vessels"].keys()))
+        yield data
+
+    def stream_vessels():
+        for vessel in state["vessels"].values():
+            tag = "vessel-%s" % vessel.id
+            data = encoder.sse(tag, vessel)
+            yield data
+
+    def stream():
+        while True:
+            yield from stream_vessels()
+            yield from stream_vessel_power()
+            yield from stream_vessel_list()
+            yield from stream_vessel_temperature()
+            yield from stream_vessel_chart()
+            yield from stream_vessel_heater()
+            time.sleep(1)
+
+    return flask.Response(stream_with_context(stream()), mimetype="text/event-stream")
+
 def post_vessel_chart(vesselId, window):
     if vesselId not in state["vessels"]:
         return {"error": "Invalid vessel ID"}, 400
@@ -107,15 +171,6 @@ def post_vessel_chart(vesselId, window):
 
     return vessel.sensor.tempHistory
 
-def get_vessel_chart_stream(vesselId):
-    def stream():
-        while True:
-            c = post_vessel_chart(vesselId, {})
-            yield encoder.sse(c[-1]) if len(c) > 0 else encoder.sse({})
-            time.sleep(1)
-
-    return flask.Response(stream_with_context(stream()), mimetype="text/event-stream")
-
 def get_vessel_temperature(vesselId):
     if vesselId not in state["vessels"]:
         return {"error": "Invalid vessel ID"}, 400
@@ -123,14 +178,6 @@ def get_vessel_temperature(vesselId):
     vessel = state["vessels"][vesselId]
 
     return vessel.sensor.temperature
-
-def get_vessel_temperature_stream(vesselId):
-    def stream():
-        while True:
-            yield encoder.sse(get_vessel_temperature(vesselId))
-            time.sleep(1)
-
-    return flask.Response(stream_with_context(stream()), mimetype="text/event-stream")
 
 def get_vessel_mode(vesselId):
     if vesselId not in state["vessels"]:
@@ -145,11 +192,12 @@ def put_vessel_mode(vesselId, mode):
         return {"error": "Invalid vessel ID"}, 400
 
     vessel = state["vessels"][vesselId]
-    if mode == "on":
+    mode = HeaterMode(mode["mode"])
+    if mode == HeaterMode.ON:
         vessel.heater.enable()
-    elif mode == "off":
+    elif mode == HeaterMode.OFF:
         vessel.heater.disable()
-    elif mode == "pid":
+    elif mode == HeaterMode.PID:
         vessel.heater.enable_pid()
     else:
         return {"error": "Invalid mode"}, 400
@@ -165,6 +213,22 @@ def put_vessel_pid(vesselId, tunings):
             tunings["Ki"],
             tunings["Kd"])
 
+def put_vessel_setpoint(vesselId, setpoint):
+    if vesselId not in state["vessels"]:
+        return {"error": "Invalid vessel ID"}, 400
+
+    vessel = state["vessels"][vesselId]
+
+    vessel.pid.setpoint = setpoint["temperature"]
+
+def get_vessel_setpoint(vesselId, setpoint):
+    if vesselId not in state["vessels"]:
+        return {"error": "Invalid vessel ID"}, 400
+
+    vessel = state["vessels"][vesselId]
+
+    return Temperature(vessel.pid.setpoint)
+
 def get_vessel_pid(vesselId):
     if vesselId not in state["vessels"]:
         return {"error": "Invalid vessel ID"}, 400
@@ -172,16 +236,6 @@ def get_vessel_pid(vesselId):
     vessel = state["vessels"][vesselId]
 
     return vessel.pid
-
-def get_vessel_pid_stream(vesselId):
-    e = Encoder()
-
-    def stream():
-        while 1:
-            yield e.sse(get_vessel_pid(vesselId))
-            time.sleep(1)
-
-    return flask.Response(stream_with_context(stream()), mimetype="text/event-stream"), 200
 
 def verify_api_key(apikey, required_scopes=None):
     return {"sub": "admin"}

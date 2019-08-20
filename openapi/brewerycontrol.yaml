@@ -35,25 +35,15 @@ paths:
               $ref: "#/definitions/Vessel"
         400:
           description: "Invalid status value"
-  /vessel/{vesselId}/chart_stream:
+  /stream:
     get:
       tags:
-      - "vessel"
-      summary: "Get chart for vessel as a stream"
-      operationId: "service.get_vessel_chart_stream"
+      - "stream"
+      summary: "Get all events in stream format"
+      operationId: "service.get_stream"
       produces:
       - "text/event-stream"
-      parameters:
-      - name: "vesselId"
-        in: "path"
-        description: "ID of vessel to tune PID for"
-        required: true
-        type: "string"
       responses:
-        200:
-          description: "Successful operation"
-          schema:
-            $ref: "#/definitions/Chart"
         400:
           description: "Invalid status value"
   /vessel/{vesselId}/chart:
@@ -104,14 +94,56 @@ paths:
             $ref: "#/definitions/Temperature"
         400:
           description: "Invalid status value"
-  /vessel/{vesselId}/temperature_stream:
+  /vessel/{vesselId}/mode:
     get:
       tags:
       - "vessel"
-      summary: "Get temperature for vessel as a stream"
-      operationId: "service.get_vessel_temperature_stream"
+      summary: "Get mode for vessel"
+      operationId: "service.get_vessel_mode"
       produces:
-      - "text/event-stream"
+      - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/VesselMode"
+        400:
+          description: "Invalid status value"
+    put:
+      tags:
+      - "vessel"
+      summary: "Set mode for vessel"
+      operationId: "service.put_vessel_mode"
+      consumes:
+          - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "mode"
+        in: "body"
+        required: true
+        schema:
+            $ref: "#/definitions/VesselMode"
+      responses:
+        200:
+          description: "Successful operation"
+        400:
+          description: "Invalid status value"
+  /vessel/{vesselId}/setpoint:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get setpoint for vessel"
+      operationId: "service.get_vessel_setpoint"
+      produces:
+      - "application/json"
       parameters:
       - name: "vesselId"
         in: "path"
@@ -124,30 +156,28 @@ paths:
             $ref: "#/definitions/Temperature"
         400:
           description: "Invalid status value"
-  /vessel/{vesselId}/PID_stream:
-    get:
+    put:
       tags:
       - "vessel"
-      summary: "Get the current tuning of the PID of this vessel as a stream"
-      description: ""
-      operationId: "service.get_vessel_pid_stream"
-      produces:
-      - "text/event-stream"
+      summary: "Set setpoint for vessel"
+      operationId: "service.put_vessel_setpoint"
+      consumes:
+          - "application/json"
       parameters:
       - name: "vesselId"
         in: "path"
-        description: "ID of vessel to tune PID for"
         required: true
         type: "string"
+      - name: "setpoint"
+        in: "body"
+        required: true
+        schema:
+            $ref: "#/definitions/Temperature"
       responses:
         200:
-            description: "Current PID state"
-            schema:
-                $ref: "#/definitions/PIDState"
+          description: "Successful operation"
         400:
-          description: "Invalid vessel ID supplied"
-        404:
-          description: "Vessel not found"
+          description: "Invalid status value"
 
 securityDefinitions:
   api_key:
@@ -247,9 +277,12 @@ definitions:
     example: "75"
     description: "Power level, expressed as a percentage. 75 means the heater will operate on 75% efficiency."
   VesselMode:
-    type: "string"
-    enum: ["off", "pid", "on"]
-    description: "Mode of operation for this vessel. Off means the vessel will never heat, pid means the vessel is controlled by its PID controller, on means the vessel is enabled and heats at full power"
+    type: "object"
+    properties:
+      mode:
+        type: "string"
+        enum: ["OFF", "PID", "ON"]
+        description: "Mode of operation for this vessel. Off means the vessel will never heat, pid means the vessel is controlled by its PID controller, on means the vessel is enabled and heats at full power"
   ChartWindow:
     type: "object"
     properties:

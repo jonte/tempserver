@@ -1,112 +1,164 @@
 const {LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine} = Recharts;
-
-function Heater (props) {
-    function HeaterStages (props) {
-        return (
-            <div className="box">
+function HeaterStages (props) {
+    return (
+        <div className="box">
+            {
+            props.heating_stages && props.heating_stages.length > 0 &&
+            <table className="table is-striped is-narrow is-hoverable is-fullwidth">
+                <thead>
+                    <tr>
+                       <th>Name</th>
+                       <th>Time</th>
+                       <th>Temp</th>
+                       <th><abbr title="Time remaining">T.R</abbr></th>
+                       <th>Controls</th>
+                    </tr>
+                </thead>
+                <tbody>
                 {
-                props.heating_stages && props.heating_stages.length > 0 &&
-                <table className="table is-striped is-narrow is-hoverable is-fullwidth">
-                    <thead>
-                        <tr>
-                           <th>Name</th>
-                           <th>Time</th>
-                           <th>Temp</th>
-                           <th><abbr title="Time remaining">T.R</abbr></th>
-                           <th>Controls</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {
-                    props.heating_stages &&
-                    props.heating_stages.map((stage, index) => {
-                        return (
-                                <tr className={stage.active ? "is-selected" : ""}>
-                                    <td>{stage.name}</td>
-                                    <td>{stage.time}</td>
-                                    <td>{stage.temp}</td>
-                                    <td>{stage.time_remaining}</td>
-                                    <td>
-                                        <a className="button is-small"
-                                           onClick={props.handleEnableClick}>
-                                            <span className="icon is-medium">
-                                                <i className="fas fa-trash" />
-                                            </span>
-                                        </a>
+                props.heating_stages &&
+                props.heating_stages.map((stage, index) => {
+                    return (
+                            <tr className={stage.active ? "is-selected" : ""}>
+                                <td>{stage.name}</td>
+                                <td>{stage.time}</td>
+                                <td>{stage.temp}</td>
+                                <td>{stage.time_remaining}</td>
+                                <td>
                                     <a className="button is-small"
                                        onClick={props.handleEnableClick}>
                                         <span className="icon is-medium">
-                                            <i className="fas fa-edit" />
+                                            <i className="fas fa-trash" />
                                         </span>
                                     </a>
-                                    </td>
-                                </tr>
-                        )
-                    })
-                    }
-                    </tbody>
-                </table>
+                                <a className="button is-small"
+                                   onClick={props.handleEnableClick}>
+                                    <span className="icon is-medium">
+                                        <i className="fas fa-edit" />
+                                    </span>
+                                </a>
+                                </td>
+                            </tr>
+                    )
+                })
                 }
-                <a className="button is-large"
-                   onClick={() => { props.handleAutomationStateChangeReq("STARTED")}}>
-                    <span className="icon is-medium">
-                        <i className="fas fa-play" />
-                    </span>
-                </a>
-                <a className="button is-large"
-                   onClick={props.handleEnableClick}>
-                    <span className="icon is-medium">
-                        <i className="fas fa-plus-square" />
-                    </span>
-                </a>
-            </div>
-        )
+                </tbody>
+            </table>
+            }
+            <a className="button is-large"
+               onClick={() => { props.handleAutomationStateChangeReq("STARTED")}}>
+                <span className="icon is-medium">
+                    <i className="fas fa-play" />
+                </span>
+            </a>
+            <a className="button is-large"
+               onClick={props.handleEnableClick}>
+                <span className="icon is-medium">
+                    <i className="fas fa-plus-square" />
+                </span>
+            </a>
+        </div>
+    )
+}
+
+class VesselControl extends React.Component {
+    constructor (props) {
+        super(props);
+
+        this.state = {
+            "active": false,
+            "is_manual": false,
+            "level": 0.0,
+            "mode": "off",
+            "pid": {"setpoint": 0}
+        };
+
+        this.props.es.addEventListener("vessel-heater-" + props.id, e => {
+            this.setState(JSON.parse(e.data))
+        });
+
+        this.setpointInputRef = React.createRef();
     }
 
-    return (
-        <div className="box has-text-centered">
-            <p className="heading">{props.heater.name}</p>
-            <div className="field has-addons">
-                <a className="button is-large"
-                   onClick={props.handleEnableClick}>
-                    <span className={"icon is-medium " + (props.heater.enabled ? "has-text-danger" : "")}
-                          >
-                        <i className="fas fa-power-off" />
-                    </span>
-                </a>
-                &nbsp;
-                &nbsp;
-                { props.heater.is_manual &&
-                    <div>
-                        <a className="button is-large"
-                           onClick={props.handleActivateClick}>
-                            <span className={"icon is-medium " + (props.heater.active ? "has-text-danger" : "")}
-                                  >
-                                <i className="fas fa-fire" />
-                            </span>
-                        </a>
-                    </div>
-                }
-                { !props.heater.is_manual &&
+    componentDidMount() {
+        const field = this.setpointInputRef.current;
+        field.value = this.state.pid.setpoint;
+    }
+
+    render() {
+        const setpointChanged = (e) => {
+            const new_temp = e.target.value
+
+            putVessel("setpoint", this.props.id, {"temperature": parseInt(new_temp)}, () => {});
+        };
+
+        const modifySetpoint = (modifier) => {
+            const field = this.setpointInputRef.current
+            field.value = parseInt(field.value) + modifier;
+
+            setpointChanged({"target": field});
+        };
+
+        const handleEnableClick = () => {
+            console.log(this.state.mode);
+            var new_mode = "PID";
+
+            if (this.state.mode.mode == "ON" || this.state.mode.mode == "PID") {
+                new_mode = "OFF";
+            }
+
+            putVessel("mode", this.props.id, {"mode": new_mode}, () => {});
+        };
+
+        return (
+            <div className="box has-text-centered">
+                <div className="field has-addons">
+                    <a className="button is-large"
+                       onClick={handleEnableClick}>
+                        <span className={"icon is-medium " + (this.state.mode.mode != "OFF" ? "has-text-danger" : "")}
+                              >
+                            <i className="fas fa-power-off" />
+                        </span>
+                    </a>
+                    &nbsp;
+                    &nbsp;
                     <input className="control input is-large is-expanded"
                            style={{width: "7em"}}
                            type="text"
-                           placeholder={props.setpoint}
-                           onChange={props.setpointChanged}
+                           placeholder={this.state.pid.setpoint.temperature}
+                           onChange={setpointChanged}
+                           ref = {this.setpointInputRef}
                     />
-                }
-                { !props.heater.is_manual &&
+
+                    <p className="control" onClick={() => modifySetpoint(10)}>
+                        <button className="button is-large">
+                            <i className="fas fa-angle-double-up" />
+                        </button>
+                    </p>
+                    <p className="control" onClick={() => modifySetpoint(1)}>
+                        <button className="button is-large">
+                            <i className="fas fa-angle-up" />
+                        </button>
+                    </p>
+                    <p className="control" onClick={() => modifySetpoint(-1)}>
+                        <button className="button is-large">
+                            <i className="fas fa-angle-down" />
+                        </button>
+                    </p>
+                    <p className="control" onClick={() => modifySetpoint(-10)}>
+                        <button className="button is-large">
+                            <i className="fas fa-angle-double-down" />
+                        </button>
+                    </p>
                     <p className="control">
                         <button className="button is-static is-large">
                             &#8451;
                         </button>
                     </p>
-                }
+                </div>
             </div>
-            <HeaterStages heating_stages={props.heating_stages}
-                          handleAutomationStateChangeReq={props.handleAutomationStateChangeReq}/>
-        </div>
-    );
+        );
+    }
 }
 
 function Pump (props) {
@@ -129,14 +181,20 @@ function Pump (props) {
 class SimpleLineChart extends React.Component {
     constructor (props) {
         super(props);
+        const MAX_CHART_SIZE = 500
         this.state = {"chart": []};
-    }
 
-    componentDidMount() {
-        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/chart_stream");
-        this.eventSource.onmessage = e => {
-            this.setState({"chart": this.state.chart.concat(JSON.parse(e.data))})
-        }
+        this.props.es.addEventListener("vessel-chart-" + props.id, e => {
+            var newChart = []
+            if (this.state.chart.length >= MAX_CHART_SIZE) {
+                const boundedChart = this.state.chart.slice(1,MAX_CHART_SIZE)
+                newChart = boundedChart.concat(JSON.parse(e.data))
+            } else {
+                newChart = this.state.chart.concat(JSON.parse(e.data))
+            }
+
+            this.setState({"chart": newChart})
+        });
     }
 
     render () {
@@ -149,7 +207,7 @@ class SimpleLineChart extends React.Component {
         let heater_level = (t) => {return t.heater_level.power};
 
         return (
-            <LineChart width={600} height={250} data={this.state.chart}>
+            <LineChart width={760} height={350} data={this.state.chart}>
                <XAxis dataKey="date" tickFormatter={tickFormatter} angle={-45} textAnchor="end" height={65}/>
                <YAxis />
                <YAxis yAxisId="right" orientation="right" />
@@ -165,14 +223,11 @@ class SimpleLineChart extends React.Component {
 class HeatGauge extends React.Component {
     constructor (props) {
         super(props);
-        this.state = {"output": 0};
-    }
+        this.state = {"output": -1};
 
-    componentDidMount() {
-//        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/PID_stream");
-//        this.eventSource.onmessage = e => {
-//            this.setState({"output": JSON.parse(e.data).output})
-//        }
+        this.props.es.addEventListener("vessel-power-" + props.id, e => {
+            this.setState({"output": JSON.parse(e.data)})
+        });
     }
 
     render () {
@@ -190,18 +245,15 @@ class HeatGauge extends React.Component {
 class TemperatureLabel extends React.Component {
     constructor (props) {
         super(props);
+
         this.state = {
             "temperature": "?",
-            "unit": "C",
+            "unit": "C"
         };
-    }
 
-    componentDidMount() {
-        this.eventSource = new EventSource("/v1/vessel/"+this.props.id+"/temperature_stream");
-        this.eventSource.onmessage = e => {
-            console.log("Event from " + this.props.name)
-            this.setState(JSON.parse(e.data));
-        }
+        this.props.es.addEventListener("vessel-temperature-" + props.id, e => {
+            this.setState(JSON.parse(e.data))
+        });
     }
 
     render () {
@@ -217,17 +269,30 @@ class TemperatureLabel extends React.Component {
 class Vessel extends React.Component {
     constructor (props) {
         super(props);
-        this.state = props.vessel;
+        this.state = {
+            "id": props.id,
+            "name": "Unknown"
+        };
+
+        this.props.es.addEventListener("vessel-" + props.id, e => {
+            this.setState(JSON.parse(e.data))
+        });
     }
 
     render() {
+        const setpointChanged = (e) => {
+            console.log(e)
+        }
+
         return (
             <div className="has-text-centered">
                 <div className="box">
-                    <TemperatureLabel name={this.state.name} id={this.state.id}/>
-                    <HeatGauge id={this.state.id}/>
-                    <SimpleLineChart id={this.state.id} />
-                    <p className="heading">Måltemp: {this.state.pid_state.setpoint.temperature}°{this.state.pid_state.setpoint.unit}</p>
+                    <TemperatureLabel name={this.state.name} id={this.state.id} es={this.props.es}/>
+                    <HeatGauge id={this.state.id} es={this.props.es}/>
+                    <SimpleLineChart id={this.state.id} es={this.props.es}/>
+                    <VesselControl setpointChanged={setpointChanged}
+                                   id={this.state.id}
+                                   es={this.props.es}/>
                 </div>
             </div>
         );
@@ -237,78 +302,22 @@ class Vessel extends React.Component {
 class ControlPanel extends React.Component {
     constructor (props) {
         super(props);
-        this.state = {
-            "vessels": [],
-        };
-    }
+        this.state = {"vessels": []};
 
-    getPump(pump_id) {
-        if (pump_id in this.state.pumps) {
-            return this.state.pumps[pump_id];
-        } else {
-            console.warn("Pump id: '"+pump_id+"' does not exist");
-            return 0;
-        }
-    }
-
-    renderPump(pump_id) {
-        return (
-                <Pump pump={this.getPump(pump_id)}
-                      handleClick = {() => {
-                          var pump = this.getPump(pump_id);
-                          var newState = pump.active ? "off" : "on";
-
-                          setPump(pump_id, newState);
-                }}/>
-        );
-    }
-
-    renderHeater(heater_id) {
-        const stateCb = this.setState.bind(this);
-
-        return (
-                <Heater heater={this.getHeater(heater_id)}
-                    handleEnableClick = {() => {
-                        var heater = this.getHeater(heater_id);
-                        setHeaterEnabledState(heater_id,
-                                              !heater.enabled,
-                                              stateCb
-                        );
-                    }}
-                    handleActivateClick = {() => {
-                        var heater = this.getHeater(heater_id);
-                        setHeaterActiveState(heater_id, !heater.active, stateCb);
-                    }}
-                    setpointChanged = {(event) => {
-                        var heater = this.getHeater(heater_id);
-                        setHeaterSetpoint(heater_id, event.target.value, stateCb);
-                    }}
-                    handleAutomationStateChangeReq = {(new_state) => {
-                        var sensor = this.getVessel(heater_id);
-                        setSensorAutomationState(heater_id, new_state, stateCb);
-                    }}
-                    setpoint = {this.getVessel(heater_id).setpoint}
-                    heating_stages = {this.getVessel(heater_id).heating_stages}
-                />
-        );
-    }
-
-    updateVessels(vessels) {
-        this.setState({"vessels": vessels});
-    }
-
-    componentDidMount() {
-        fetchVessels((response) => {this.updateVessels(response.data)});
+        this.eventSource = new EventSource("/v1/stream");
+        this.eventSource.addEventListener("vessels", e => {
+            this.setState({"vessels": JSON.parse(e.data)})
+        });
     }
 
     render() {
         return (
             <div>
-                {
-                    this.state.vessels.map((vessel, i) => {
-                        return <Vessel key={i} vessel={vessel}/>
-                    })
-                }
+            {
+                this.state.vessels.map((vessel, i) => {
+                    return (<Vessel id={vessel} key={vessel} es={this.eventSource}/>)
+                })
+            }
             </div>
         );
     }
@@ -318,6 +327,17 @@ ReactDOM.render(
   <ControlPanel />,
   document.getElementById('root')
 );
+
+function putVessel(func, vesselId, data, cb) {
+    console.log("putVessel");
+    return axios
+        .put("/v1/vessel/" + vesselId + "/" + func, data)
+        .then((response) => {
+            cb (response.data)
+        }).catch(function (error) {
+            console.log(error);
+        });
+}
 
 function fetchVessels(cb) {
     return axios.get("/v1/vessel")

@@ -1,0 +1,6 @@
+Python modules:
+    - gpiozero
+    - connexion[swagger-ui]
+    - simple_pid
+    - apscheduler
+    - w1thermsensor

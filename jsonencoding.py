@@ -10,8 +10,8 @@ from pidtunings import PIDTunings
 from flask import json
 
 class Encoder(JSONEncoder):
-    def sse(self, obj):
-        s = "data:%s\n\n" % json.dumps(obj)
+    def sse(self, event, obj):
+        s = "event: %s\ndata: %s\n\n" % (event, json.dumps(obj))
         return bytes(s, encoding="UTF-8")
 
     def default(self, obj):
@@ -27,10 +27,11 @@ class Encoder(JSONEncoder):
         if isinstance(obj, Heater):
             return {
                     "active": obj.heating,
-                    "enabled": obj.enabled,
+                    "mode": {"mode": obj.mode.value},
                     "name": obj.name,
                     "is_manual": obj.is_manual,
                     "level": obj.heating_element.value * 100,
+                    "pid": obj.pid,
             }
         if isinstance(obj, PID):
             return {
@@ -43,8 +44,6 @@ class Encoder(JSONEncoder):
             return {
                     "id": obj.id,
                     "name": obj.name,
-                    "temperature": obj.sensor.temperature,
-                    "pid_state": obj.sensor.pid,
             }
         if isinstance(obj, deque):
             return list(obj)
@@ -60,11 +59,11 @@ class Encoder(JSONEncoder):
                     "Kd": obj.Kd}
         if isinstance(obj, HeaterMode):
             if obj == HeaterMode.ON:
-                return "on"
+                return {"mode:" "OFF"}
             elif obj == HeaterMode.OFF:
-                return "off"
+                return {"mode:" "ON"}
             elif obj == HeaterMode.PID:
-                return "pid"
+                return {"mode:" "PID"}
             else:
                 raise TypeError("Illegal heater mode")
         else:

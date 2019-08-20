@@ -1,11 +1,15 @@
-import logging
-from gpiozero import PWMOutputDevice
+import logging, os
 from enum import Enum
 
+if os.environ.get("DUMMY", False):
+    from gpiozero_dummy import PWMOutputDevice
+else:
+    from gpiozero import PWMOutputDevice
+
 class HeaterMode(Enum):
-    PID = "pid"
-    OFF = "off"
-    ON = "on"
+    PID = "PID"
+    OFF = "OFF"
+    ON = "ON"
 
 class Heater:
     def __init__(self, gpio_pin, name = "Unknown", is_manual = False, sensor=None, pid = None, scheduler = None):
@@ -35,7 +39,7 @@ class Heater:
         self._set_mode(HeaterMode.OFF)
 
     def _set_heating_level(self, level):
-        if (self.mode != HeaterMode.OFF) and level > 0:
+        if (self.mode == HeaterMode.OFF) and level > 0:
             return "Heater not enabled"
 
         self.heating_element.value = level
