@@ -12,7 +12,7 @@ class HeaterMode(Enum):
     ON = "ON"
 
 class Heater:
-    def __init__(self, gpio_pin, name = "Unknown", is_manual = False, sensor=None, pid = None, scheduler = None):
+    def __init__(self, gpio_pin, name = "Unknown", is_manual = False, sensor=None, pid = None, scheduler = None, notify_change = None, id = None):
         self.heating = False
         self.mode = HeaterMode.OFF
         self.name = name
@@ -21,7 +21,10 @@ class Heater:
         self.sensor = sensor
         self.pid = pid
         self.scheduler = scheduler
+        self.notify_change = notify_change
+        self.id = id
         self.scheduler.add_job(self.process_pid, 'interval', seconds=1, id="pid_iteration %s" % name)
+        self.previous_level = -1
 
     def _set_mode(self, mode):
         if mode == HeaterMode.OFF:
@@ -43,9 +46,13 @@ class Heater:
             return "Heater not enabled"
 
         self.heating_element.value = level
+        if self.notify_change:
+            self.notify_change(("vessel-power-" + self.id, level * 100))
+            self.notify_change(("vessel-heater-" + self.id, self))
 
         logging.info("Heating element %s level: %f" % (self.name, level))
         self.heating = (level > 0)
+        self.previous_level = level
 
     def stop_heating(self):
         return self._set_heating_level(0)

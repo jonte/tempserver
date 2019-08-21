@@ -70,11 +70,15 @@ class VesselControl extends React.Component {
             "is_manual": false,
             "level": 0.0,
             "mode": "off",
-            "pid": {"setpoint": 0}
+            "pid": {"setpoint": {"temperature": 0}}
         };
 
         this.props.es.addEventListener("vessel-heater-" + props.id, e => {
             this.setState(JSON.parse(e.data))
+
+
+            const field = this.setpointInputRef.current;
+            field.value = this.state.pid.setpoint.temperature;
         });
 
         this.setpointInputRef = React.createRef();
@@ -82,7 +86,7 @@ class VesselControl extends React.Component {
 
     componentDidMount() {
         const field = this.setpointInputRef.current;
-        field.value = this.state.pid.setpoint;
+        field.value = this.state.pid.setpoint.temperature;
     }
 
     render() {
@@ -269,14 +273,6 @@ class TemperatureLabel extends React.Component {
 class Vessel extends React.Component {
     constructor (props) {
         super(props);
-        this.state = {
-            "id": props.id,
-            "name": "Unknown"
-        };
-
-        this.props.es.addEventListener("vessel-" + props.id, e => {
-            this.setState(JSON.parse(e.data))
-        });
     }
 
     render() {
@@ -287,11 +283,11 @@ class Vessel extends React.Component {
         return (
             <div className="has-text-centered">
                 <div className="box">
-                    <TemperatureLabel name={this.state.name} id={this.state.id} es={this.props.es}/>
-                    <HeatGauge id={this.state.id} es={this.props.es}/>
-                    <SimpleLineChart id={this.state.id} es={this.props.es}/>
+                    <TemperatureLabel name={this.props.name} id={this.props.id} es={this.props.es}/>
+                    <HeatGauge id={this.props.id} es={this.props.es}/>
+                    <SimpleLineChart id={this.props.id} es={this.props.es}/>
                     <VesselControl setpointChanged={setpointChanged}
-                                   id={this.state.id}
+                                   id={this.props.id}
                                    es={this.props.es}/>
                 </div>
             </div>
@@ -305,8 +301,9 @@ class ControlPanel extends React.Component {
         this.state = {"vessels": []};
 
         this.eventSource = new EventSource("/v1/stream");
-        this.eventSource.addEventListener("vessels", e => {
-            this.setState({"vessels": JSON.parse(e.data)})
+
+        fetchVessels((e) => {
+            this.setState({"vessels": e.data})
         });
     }
 
@@ -315,7 +312,7 @@ class ControlPanel extends React.Component {
             <div>
             {
                 this.state.vessels.map((vessel, i) => {
-                    return (<Vessel id={vessel} key={vessel} es={this.eventSource}/>)
+                    return (<Vessel name={vessel.name} id={vessel.id} key={vessel.id} es={this.eventSource}/>)
                 })
             }
             </div>

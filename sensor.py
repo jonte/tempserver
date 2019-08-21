@@ -10,7 +10,7 @@ else:
     from w1thermsensor import W1ThermSensor
 
 class Sensor:
-    def __init__(self, id = None, start_temp = 0, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None):
+    def __init__(self, id = None, start_temp = 0, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None, notify_change = None):
         self.temperature = Temperature(start_temp)
         self.name = name
         self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id)
@@ -21,6 +21,7 @@ class Sensor:
         self.scheduler = scheduler
         self.pid = pid
         self.id = id
+        self.notify_change = notify_change
 #        scheduler.add_job(self.automation_iteration, 'interval', seconds=1)
         scheduler.add_job(self.update_temp, 'interval', seconds=5)
         if sensor_id == "":
@@ -94,7 +95,10 @@ class Sensor:
                     "heater_level": Power(self.pid.output) if self.pid else 0,
                     "setpoint": Temperature(self.pid.setpoint) if self.pid else 0,
                     "date": int(time.time())}
-        self.tempHistory.append(history_obj)
+
+        if self.notify_change:
+            self.notify_change(("vessel-temperature-" + self.id, self.temperature))
+            self.notify_change(("vessel-chart-" + self.id, history_obj))
 
         if self.pid:
             self.pid.output = self.pid(self.temperature.temperature)

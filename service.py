@@ -13,6 +13,7 @@ from simple_pid import PID
 from vessel import Vessel
 import connexion, flask
 from flask import stream_with_context
+from queue import Queue
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 log = logging.getLogger('werkzeug')
@@ -36,45 +37,60 @@ hlt_pid.output = 0
 bk_pid.output = 0
 encoder = Encoder()
 
+stream_subscribers = []
+
+def notify_change(elem):
+    for subscriber in stream_subscribers:
+        subscriber(elem)
+
 mlt_sensor = Sensor(start_temp = 80,
                     name = "Mäskkärl",
                     id = "mlt",
                     scheduler=apsched,
                     sensor_id=config.get("tempjs", "mlt_sensor", fallback=""),
-                    pid = mlt_pid)
+                    pid = mlt_pid,
+                    notify_change = notify_change)
 
 hlt_sensor = Sensor(start_temp = 80,
                     name = "Hetvattenskärl",
                     id = "hlt",
                     scheduler=apsched,
                     sensor_id=config.get("tempjs", "hlt_sensor", fallback=""),
-                    pid = hlt_pid)
+                    pid = hlt_pid,
+                    notify_change = notify_change)
 
 bk_sensor = Sensor(start_temp = 100,
                    name = "Kokkärl",
                    id = "bk",
                    scheduler=apsched,
                    sensor_id=config.get("tempjs", "bk_sensor", fallback=""),
-                   pid = bk_pid)
+                   pid = bk_pid,
+                   notify_change = notify_change)
 
 hlt_heater = Heater(10,
                     "Hetvattenskärl",
+                    id = "hlt",
                     sensor=hlt_sensor,
                     pid=hlt_pid,
-                    scheduler = apsched)
+                    scheduler = apsched,
+                    notify_change = notify_change)
 
 bk_heater = Heater(11,
                    "Kokkärl",
+                   id = "bk",
                    is_manual=True,
                    sensor=bk_sensor,
                    pid=bk_pid,
-                   scheduler = apsched)
+                   scheduler = apsched,
+                   notify_change = notify_change)
 
 mlt_heater = Heater(17,
                     "Mäskkärl",
+                    id = "mlt",
                     sensor=mlt_sensor,
                     pid=mlt_pid,
-                    scheduler = apsched)
+                    scheduler = apsched,
+                    notify_change = notify_change)
 
 state = {
         "vessels": {
@@ -103,63 +119,15 @@ def get_vessel():
     return list(state["vessels"].values())
 
 def get_stream():
-    memory = {}
-
-    def has_changed(memory, tag, new):
-        if tag not in memory:
-            memory[tag] = new
-            return True
-
-        change = (memory[tag] != new)
-        memory[tag] = new
-        return change
-
-    def stream_vessel_chart():
-        for vessel in state["vessels"].values():
-            tag = "vessel-chart-%s" % vessel.id
-            if vessel.sensor.tempHistory:
-                data = encoder.sse(tag, vessel.sensor.tempHistory[-1])
-                if has_changed(memory, tag, data):
-                    yield data
-
-    def stream_vessel_temperature():
-        for vessel in state["vessels"].values():
-            tag = "vessel-temperature-%s" % vessel.id
-            data = encoder.sse(tag, vessel.sensor.temperature)
-            yield data
-
-    def stream_vessel_power():
-        for vessel in state["vessels"].values():
-            tag = "vessel-power-%s" % vessel.id
-            data = encoder.sse(tag, vessel.heater.heating_element.value * 100)
-            yield data
-
-    def stream_vessel_heater():
-        for vessel in state["vessels"].values():
-            tag = "vessel-heater-%s" % vessel.id
-            data = encoder.sse(tag, vessel.heater)
-            yield data
-
-    def stream_vessel_list():
-        tag = "vessels"
-        data = encoder.sse("vessels", list(state["vessels"].keys()))
-        yield data
-
-    def stream_vessels():
-        for vessel in state["vessels"].values():
-            tag = "vessel-%s" % vessel.id
-            data = encoder.sse(tag, vessel)
-            yield data
+    queue = Queue()
 
     def stream():
+        stream_subscribers.append(queue.put)
+
         while True:
-            yield from stream_vessels()
-            yield from stream_vessel_power()
-            yield from stream_vessel_list()
-            yield from stream_vessel_temperature()
-            yield from stream_vessel_chart()
-            yield from stream_vessel_heater()
-            time.sleep(1)
+            tag, message = queue.get()
+            data = encoder.sse(tag, message)
+            yield data
 
     return flask.Response(stream_with_context(stream()), mimetype="text/event-stream")
 
