@@ -207,7 +207,7 @@ class SimpleLineChart extends React.Component {
         let heater_level = (t) => {return t.heater_level.power};
 
         return (
-            <LineChart width={760} height={350} data={this.state.chart}>
+            <LineChart width={760} height={255} data={this.state.chart}>
                <XAxis dataKey="date" tickFormatter={tickFormatter} angle={-45} textAnchor="end" height={65}/>
                <YAxis />
                <YAxis yAxisId="right" orientation="right" />
