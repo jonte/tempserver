@@ -178,6 +178,48 @@ paths:
           description: "Successful operation"
         400:
           description: "Invalid status value"
+  /vessel/{vesselId}/pid:
+    get:
+      tags:
+      - "vessel"
+      summary: "Get PID tuning for vessel"
+      operationId: "service.get_vessel_pid"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/PIDState"
+        400:
+          description: "Invalid status value"
+    put:
+      tags:
+      - "vessel"
+      summary: "Set pid tuning for vessel"
+      operationId: "service.put_vessel_pid"
+      consumes:
+          - "application/json"
+      parameters:
+      - name: "vesselId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "tunings"
+        in: "body"
+        required: true
+        schema:
+            $ref: "#/definitions/PIDTuning"
+      responses:
+        200:
+          description: "Successful operation"
+        400:
+          description: "Invalid status value"
 
 securityDefinitions:
   api_key:

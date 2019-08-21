@@ -25,9 +25,9 @@ config = configparser.ConfigParser()
 with open(os.path.expanduser("~/.tempjs.conf"), "r") as f:
     config.read_file(f)
 
-mlt_pid = PID(22, 0.1, 200, setpoint=1, output_limits = (0, 100))
-hlt_pid = PID(22, 0.1, 200, setpoint=1, output_limits = (0, 100))
-bk_pid = PID(22, 0.1, 200, setpoint=1, output_limits = (0, 100))
+mlt_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
+hlt_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
+bk_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
 
 # Monkey-patch last seen output value into PID objects. This is for convenience
 # since the PID objects are used by both Sensor and Heater.
