@@ -181,6 +181,8 @@ def put_vessel_pid(vesselId, tunings):
             tunings["Ki"],
             tunings["Kd"])
 
+    vessel.heater.publish_state()
+
 def put_vessel_setpoint(vesselId, setpoint):
     if vesselId not in state["vessels"]:
         return {"error": "Invalid vessel ID"}, 400
@@ -188,6 +190,7 @@ def put_vessel_setpoint(vesselId, setpoint):
     vessel = state["vessels"][vesselId]
 
     vessel.pid.setpoint = setpoint["temperature"]
+    vessel.heater.publish_state()
 
 def get_vessel_setpoint(vesselId, setpoint):
     if vesselId not in state["vessels"]:

@@ -31,6 +31,7 @@ class Heater:
             self.stop_heating()
 
         self.mode = mode
+        self.publish_state()
 
     def enable_pid(self):
         self._set_mode(HeaterMode.PID)
@@ -46,9 +47,7 @@ class Heater:
             return "Heater not enabled"
 
         self.heating_element.value = level
-        if self.notify_change:
-            self.notify_change(("vessel-power-" + self.id, level * 100))
-            self.notify_change(("vessel-heater-" + self.id, self))
+        self.publish_state()
 
         logging.info("Heating element %s level: %f" % (self.name, level))
         self.heating = (level > 0)
@@ -62,3 +61,9 @@ class Heater:
 
     def process_pid(self):
         self._set_heating_level(self.pid.output/100.0)
+
+    def publish_state(self):
+        if self.notify_change:
+            self.notify_change(("vessel-power-" + self.id,
+                self.heating_element.value * 100))
+            self.notify_change(("vessel-heater-" + self.id, self))
