@@ -1,0 +1,35 @@
+[vessels/hlt]
+sensor_id = 03119779ba13
+name = Hot liquor tank
+
+[vessels/hlt/heater]
+gpio_pin = 10
+
+[vessels/hlt/pid]
+p = 5
+i = 0.03
+d = 200
+
+[vessels/mlt]
+sensor_id = 03119779ba13
+name = Mash liquor tank
+
+[vessels/mlt/heater]
+gpio_pin = 17
+
+[vessels/mlt/pid]
+p = 5
+i = 0.03
+d = 200
+
+[vessels/bk]
+sensor_id = 03119779ba13
+name = Boil kettle
+
+[vessels/bk/heater]
+gpio_pin = 11
+
+[vessels/bk/pid]
+p = 5
+i = 0.03
+d = 200

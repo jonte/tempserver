@@ -4,6 +4,7 @@ import os
 import logging
 import threading
 import time
+import sys
 from gpiozero import LED
 from apscheduler.schedulers.background import BackgroundScheduler
 from sensor import Sensor
@@ -14,6 +15,7 @@ from vessel import Vessel
 import connexion, flask
 from flask import stream_with_context
 from queue import Queue
+from temperature import Temperature
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 log = logging.getLogger('werkzeug')
@@ -23,18 +25,21 @@ apsched = BackgroundScheduler()
 apsched.start()
 
 config = configparser.ConfigParser()
-with open(os.path.expanduser("~/.tempjs.conf"), "r") as f:
-    config.read_file(f)
+conf_candidates = ["~/.tempserver.conf", "/etc/tempserver.conf"]
 
-mlt_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
-hlt_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
-bk_pid = PID(5, 0.03, 200, setpoint=1, output_limits = (0, 100))
+config_read = False
+for candidate in conf_candidates:
+    path = os.path.expanduser(candidate)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            config.read_file(f)
+            config_read = True
+        break
 
-# Monkey-patch last seen output value into PID objects. This is for convenience
-# since the PID objects are used by both Sensor and Heater.
-mlt_pid.output = 0
-hlt_pid.output = 0
-bk_pid.output = 0
+if not config_read:
+    print("Failed to read config. Tried the following locations: " + ', '.join(conf_candidates))
+    sys.exit(-1)
+
 encoder = Encoder()
 
 stream_subscribers = []
@@ -43,74 +48,39 @@ def notify_change(elem):
     for subscriber in stream_subscribers:
         subscriber(elem)
 
-mlt_sensor = Sensor(start_temp = 80,
-                    name = "Mäskkärl",
-                    id = "mlt",
-                    scheduler=apsched,
-                    sensor_id=config.get("tempjs", "mlt_sensor", fallback=""),
-                    pid = mlt_pid,
-                    notify_change = notify_change)
-
-hlt_sensor = Sensor(start_temp = 80,
-                    name = "Hetvattenskärl",
-                    id = "hlt",
-                    scheduler=apsched,
-                    sensor_id=config.get("tempjs", "hlt_sensor", fallback=""),
-                    pid = hlt_pid,
-                    notify_change = notify_change)
-
-bk_sensor = Sensor(start_temp = 100,
-                   name = "Kokkärl",
-                   id = "bk",
-                   scheduler=apsched,
-                   sensor_id=config.get("tempjs", "bk_sensor", fallback=""),
-                   pid = bk_pid,
-                   notify_change = notify_change)
-
-hlt_heater = Heater(10,
-                    "Hetvattenskärl",
-                    id = "hlt",
-                    sensor=hlt_sensor,
-                    pid=hlt_pid,
-                    scheduler = apsched,
-                    notify_change = notify_change)
-
-bk_heater = Heater(11,
-                   "Kokkärl",
-                   id = "bk",
-                   is_manual=True,
-                   sensor=bk_sensor,
-                   pid=bk_pid,
-                   scheduler = apsched,
-                   notify_change = notify_change)
-
-mlt_heater = Heater(17,
-                    "Mäskkärl",
-                    id = "mlt",
-                    sensor=mlt_sensor,
-                    pid=mlt_pid,
-                    scheduler = apsched,
-                    notify_change = notify_change)
-
 state = {
-        "vessels": {
-            "bk": Vessel("bk",
-                         "Kokkärl",
-                         heater=bk_heater,
-                         sensor=bk_sensor,
-                         pid=bk_pid),
-            "mlt": Vessel("mlt",
-                          "Mäskkärl",
-                          heater=mlt_heater,
-                          sensor=mlt_sensor,
-                          pid=mlt_pid),
-            "hlt": Vessel("hlt",
-                          "Hetvattenskärl",
-                          heater=hlt_heater,
-                          sensor=hlt_sensor,
-                          pid=hlt_pid)
-        }
+        "vessels": {}
 }
+
+for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith("vessels/")]):
+    name = config.get("vessels/" + vessel_id, "name", fallback="Unknown name")
+    pid = PID(float(config.get("vessels/" + vessel_id + "/pid", "p")),
+              float(config.get("vessels/" + vessel_id + "/pid", "i")),
+              float(config.get("vessels/" + vessel_id + "/pid", "d")),
+              setpoint=1, output_limits=(0,100))
+
+    # Monkey-patch last seen output value into PID objects. This is for convenience
+    # since the PID objects are used by both Sensor and Heater.
+    pid.output = 0
+
+    sensor = Sensor(name = name,
+                    id = vessel_id,
+                    scheduler=apsched,
+                    sensor_id=config.get("vessels/" + vessel_id, "sensor_id", fallback=""),
+                    pid = pid,
+                    notify_change = notify_change)
+
+    heater = Heater(config.get("vessels/"+vessel_id+"/heater", "gpio_pin"),
+                    name,
+                    id = vessel_id,
+                    sensor=sensor,
+                    pid=pid,
+                    scheduler = apsched,
+                    notify_change = notify_change)
+
+    vessel = Vessel(vessel_id, name, heater=heater, sensor=sensor, pid=pid)
+
+    state["vessels"][vessel_id] = vessel
 
 def get_landing_page():
     return flask.render_template('index.html')
@@ -192,7 +162,7 @@ def put_vessel_setpoint(vesselId, setpoint):
     vessel.pid.setpoint = setpoint["temperature"]
     vessel.heater.publish_state()
 
-def get_vessel_setpoint(vesselId, setpoint):
+def get_vessel_setpoint(vesselId):
     if vesselId not in state["vessels"]:
         return {"error": "Invalid vessel ID"}, 400
 

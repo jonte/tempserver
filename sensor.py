@@ -10,8 +10,8 @@ else:
     from w1thermsensor import W1ThermSensor
 
 class Sensor:
-    def __init__(self, id = None, start_temp = 0, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None, notify_change = None):
-        self.temperature = Temperature(start_temp)
+    def __init__(self, id = None, name = "Unknown", setpoint = 10, scheduler=None, sensor_id="", pid = None, notify_change = None):
+        self.temperature = Temperature(0)
         self.name = name
         self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id)
         self.setpoint = setpoint

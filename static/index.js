@@ -1,65 +1,4 @@
 const {LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine} = Recharts;
-function HeaterStages (props) {
-    return (
-        <div className="box">
-            {
-            props.heating_stages && props.heating_stages.length > 0 &&
-            <table className="table is-striped is-narrow is-hoverable is-fullwidth">
-                <thead>
-                    <tr>
-                       <th>Name</th>
-                       <th>Time</th>
-                       <th>Temp</th>
-                       <th><abbr title="Time remaining">T.R</abbr></th>
-                       <th>Controls</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {
-                props.heating_stages &&
-                props.heating_stages.map((stage, index) => {
-                    return (
-                            <tr className={stage.active ? "is-selected" : ""}>
-                                <td>{stage.name}</td>
-                                <td>{stage.time}</td>
-                                <td>{stage.temp}</td>
-                                <td>{stage.time_remaining}</td>
-                                <td>
-                                    <a className="button is-small"
-                                       onClick={props.handleEnableClick}>
-                                        <span className="icon is-medium">
-                                            <i className="fas fa-trash" />
-                                        </span>
-                                    </a>
-                                <a className="button is-small"
-                                   onClick={props.handleEnableClick}>
-                                    <span className="icon is-medium">
-                                        <i className="fas fa-edit" />
-                                    </span>
-                                </a>
-                                </td>
-                            </tr>
-                    )
-                })
-                }
-                </tbody>
-            </table>
-            }
-            <a className="button is-large"
-               onClick={() => { props.handleAutomationStateChangeReq("STARTED")}}>
-                <span className="icon is-medium">
-                    <i className="fas fa-play" />
-                </span>
-            </a>
-            <a className="button is-large"
-               onClick={props.handleEnableClick}>
-                <span className="icon is-medium">
-                    <i className="fas fa-plus-square" />
-                </span>
-            </a>
-        </div>
-    )
-}
 
 class VesselControl extends React.Component {
     constructor (props) {
@@ -295,24 +234,17 @@ class Vessel extends React.Component {
     }
 }
 
-class ControlPanel extends React.Component {
+class GraphPanel extends React.Component {
     constructor (props) {
         super(props);
-        this.state = {"vessels": []};
-
-        this.eventSource = new EventSource("/v1/stream");
-
-        fetchVessels((e) => {
-            this.setState({"vessels": e.data})
-        });
     }
 
     render() {
         return (
             <div>
             {
-                this.state.vessels.map((vessel, i) => {
-                    return (<Vessel name={vessel.name} id={vessel.id} key={vessel.id} es={this.eventSource}/>)
+                this.props.vessels.map((vessel, i) => {
+                    return (<Vessel name={vessel.name} id={vessel.id} key={vessel.id} es={this.props.es}/>)
                 })
             }
             </div>
@@ -320,10 +252,116 @@ class ControlPanel extends React.Component {
     }
 }
 
-ReactDOM.render(
-  <ControlPanel />,
-  document.getElementById('root')
-);
+class Tabs extends React.Component {
+    constructor (props) {
+        super(props);
+
+        this.state = {"vessels": []};
+
+        this.eventSource = new EventSource("/v1/stream");
+
+        fetchVessels((e) => {
+            this.setState({"vessels": e.data})
+        });
+
+        this.tab_0 = React.createRef();
+        this.tab_1 = React.createRef();
+
+        this.onTabChange = (newTab) =>{
+            switch (newTab) {
+                case 0:
+                    this.tab_0.current.className = "";
+                    this.tab_1.current.className = "is-hidden";
+                    break;
+                case 1:
+                    this.tab_0.current.className = "is-hidden";
+                    this.tab_1.current.className = "";
+                    break;
+            }
+        }
+    }
+
+    render () {
+        return (
+                <div>
+                    <TabRow onTabChange={this.onTabChange}/>
+                    <div ref={this.tab_0}>
+                        <ControlPanel es={this.eventSource} vessels={this.state.vessels} />
+                    </div>
+                    <div ref={this.tab_1} className="is-hidden">
+                        <GraphPanel vessels={this.state.vessels} es={this.eventSource} id="hlt" />
+                    </div>
+                </div>
+        )
+    }
+}
+
+
+class ControlPanel extends React.Component {
+    constructor (props) {
+        super(props);
+
+        this.setpointChanged = (sp) => {
+            console.log("New setpoint: " + sp);
+        }
+    }
+
+    render () {
+        console.log("Rendering ControlPanel");
+
+        return (
+            <div>
+                {
+                this.props.vessels.map((vessel, i) => {
+                    console.log("Vessel: " + vessel.id);
+                    <VesselControl setpointChanged={this.setpointChanged}
+                                   id={vessel.id}
+                                   es={this.props.es}/>
+                })
+                }
+            </div>
+        )
+    }
+}
+
+function TabRow(props) {
+    var tab_0 = React.createRef();
+    var tab_1 = React.createRef();
+
+    function tabChange(newIdx) {
+        switch (newIdx) {
+            case 0:
+                tab_0.current.className = "is-active";
+                tab_1.current.className = "";
+                break;
+            case 1:
+                tab_0.current.className = "";
+                tab_1.current.className = "is-active";
+                break;
+        }
+
+        props.onTabChange(newIdx);
+    }
+
+    return (
+    <div className="tabs is-centered is-boxed">
+      <ul>
+        <li ref={tab_0} className="is-active" onClick={() => tabChange(0)}>
+          <a>
+            <span className="icon is-small"><i className="fas fa-tachometer-alt" aria-hidden="true"></i></span>
+            <span>Set temperatures</span>
+          </a>
+        </li>
+        <li ref={tab_1} onClick={() => tabChange(1)}>
+          <a>
+            <span className="icon is-small"><i className="fas fa-chart-area" aria-hidden="true"></i></span>
+            <span>Graphs</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+    );
+}
 
 function putVessel(func, vesselId, data, cb) {
     console.log("putVessel");
@@ -345,50 +383,8 @@ function fetchVessels(cb) {
     });
 }
 
-function setHeaterActiveState(id, state, cb) {
-    return axios
-        .put("/state/heater/" + id,
-             {"active": state}
-        ).then((response) => {cb (response.data)})
-        .catch(function (error) {
-            console.log(error);
-        });
-}
+ReactDOM.render(
+    <Tabs />,
+    document.getElementById('root')
+);
 
-function setHeaterEnabledState(heater, enabled, cb) {
-    return axios
-        .put("/state/heater/" + heater,
-             {"enabled": enabled}
-        ).then((response) => {cb (response.data)})
-        .catch(function (error) {
-            console.log(error);
-        });
-}
-
-function setHeaterSetpoint(heater, setpoint, cb) {
-    return axios
-        .put("/state/heater/" + heater,
-             {"setpoint": setpoint}
-        ).then((response) => {cb (response.data)})
-        .catch(function (error) {
-            console.log(error);
-        });
-}
-
-function setSensorAutomationState(sensor, new_state, cb) {
-    return axios
-        .put("/state/sensor/" + sensor,
-             {"automation_state": new_state}
-        ).then((response) => {cb (response.data)})
-        .catch(function (error) {
-            console.log(error);
-        });
-}
-
-function setPump(pump, state) {
-    return setActiveState("pump", pump, state);
-}
-
-function setHeater(heater, state) {
-    return setActiveState("heater", heater, state);
-}
