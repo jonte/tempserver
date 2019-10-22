@@ -2,7 +2,7 @@ import logging, os
 from enum import Enum
 
 if os.environ.get("DUMMY", False):
-    from gpiozero_dummy import PWMOutputDevice
+    from tempserver.gpiozero_dummy import PWMOutputDevice
 else:
     from gpiozero import PWMOutputDevice
 

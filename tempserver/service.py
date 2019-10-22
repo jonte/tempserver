@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 import configparser
-import os
+import connexion
+import flask
 import logging
+import os
+import sys
 import threading
 import time
-import sys
-from gpiozero import LED
+
 from apscheduler.schedulers.background import BackgroundScheduler
-from sensor import Sensor
-from heater import (Heater, HeaterMode)
-from jsonencoding import Encoder
-from simple_pid import PID
-from vessel import Vessel
-import connexion, flask
 from flask import stream_with_context
+from gpiozero import LED
 from queue import Queue
-from temperature import Temperature
+from simple_pid import PID
+
+from tempserver.heater import (Heater, HeaterMode)
+from tempserver.jsonencoding import Encoder
+from tempserver.sensor import Sensor
+from tempserver.temperature import Temperature
+from tempserver.vessel import Vessel
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 log = logging.getLogger('werkzeug')

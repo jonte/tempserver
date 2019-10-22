@@ -23,7 +23,7 @@ paths:
       - "vessel"
       summary: "Enumerate vessels"
       description: "Enumerate all vessels"
-      operationId: "service.get_vessel"
+      operationId: "tempserver.service.get_vessel"
       produces:
       - "application/json"
       responses:
@@ -40,7 +40,7 @@ paths:
       tags:
       - "stream"
       summary: "Get all events in stream format"
-      operationId: "service.get_stream"
+      operationId: "tempserver.service.get_stream"
       produces:
       - "text/event-stream"
       responses:
@@ -51,7 +51,7 @@ paths:
       tags:
       - "vessel"
       summary: "Get chart for vessel"
-      operationId: "service.post_vessel_chart"
+      operationId: "tempserver.service.post_vessel_chart"
       produces:
       - "application/json"
       parameters:
@@ -79,7 +79,7 @@ paths:
       tags:
       - "vessel"
       summary: "Get temperature for vessel"
-      operationId: "service.get_vessel_temperature"
+      operationId: "tempserver.service.get_vessel_temperature"
       produces:
       - "application/json"
       parameters:
@@ -99,7 +99,7 @@ paths:
       tags:
       - "vessel"
       summary: "Get mode for vessel"
-      operationId: "service.get_vessel_mode"
+      operationId: "tempserver.service.get_vessel_mode"
       produces:
       - "application/json"
       parameters:
@@ -118,7 +118,7 @@ paths:
       tags:
       - "vessel"
       summary: "Set mode for vessel"
-      operationId: "service.put_vessel_mode"
+      operationId: "tempserver.service.put_vessel_mode"
       consumes:
           - "application/json"
       parameters:
@@ -141,7 +141,7 @@ paths:
       tags:
       - "vessel"
       summary: "Get setpoint for vessel"
-      operationId: "service.get_vessel_setpoint"
+      operationId: "tempserver.service.get_vessel_setpoint"
       produces:
       - "application/json"
       parameters:
@@ -160,7 +160,7 @@ paths:
       tags:
       - "vessel"
       summary: "Set setpoint for vessel"
-      operationId: "service.put_vessel_setpoint"
+      operationId: "tempserver.service.put_vessel_setpoint"
       consumes:
           - "application/json"
       parameters:
@@ -183,7 +183,7 @@ paths:
       tags:
       - "vessel"
       summary: "Get PID tuning for vessel"
-      operationId: "service.get_vessel_pid"
+      operationId: "tempserver.service.get_vessel_pid"
       produces:
       - "application/json"
       parameters:
@@ -202,7 +202,7 @@ paths:
       tags:
       - "vessel"
       summary: "Set pid tuning for vessel"
-      operationId: "service.put_vessel_pid"
+      operationId: "tempserver.service.put_vessel_pid"
       consumes:
           - "application/json"
       parameters:
@@ -226,7 +226,7 @@ securityDefinitions:
     type: "apiKey"
     name: "api_key"
     in: "header"
-    x-apikeyInfoFunc: service.verify_api_key
+    x-apikeyInfoFunc: tempserver.service.verify_api_key
 
 definitions:
   Vessel:

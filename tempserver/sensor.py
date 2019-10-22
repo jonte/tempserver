@@ -1,11 +1,13 @@
 import logging, os, time
+
 from collections import deque
-from temperature import Temperature
-from power import Power
-from jsonencoding import Encoder
+
+from tempserver.jsonencoding import Encoder
+from tempserver.power import Power
+from tempserver.temperature import Temperature
 
 if os.environ.get("DUMMY", False):
-    from w1thermsensor_dummy import W1ThermSensor
+    from tempserver.w1thermsensor_dummy import W1ThermSensor
 else:
     from w1thermsensor import W1ThermSensor
 

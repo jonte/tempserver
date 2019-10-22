@@ -13,7 +13,7 @@ schemes:
 paths:
   /:
     get:
-      operationId: "service.get_landing_page"
+      operationId: "tempserver.service.get_landing_page"
       produces:
       - "text/html"
       responses:

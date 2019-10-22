@@ -1,13 +1,13 @@
-from flask.json import JSONEncoder
-#from sensor import Sensor
-from heater import (Heater, HeaterMode)
-from simple_pid import PID
-from vessel import Vessel
 from collections import deque
-from temperature import Temperature
-from power import Power
-from pidtunings import PIDTunings
 from flask import json
+from flask.json import JSONEncoder
+from simple_pid import PID
+
+from tempserver.heater import (Heater, HeaterMode)
+from tempserver.pidtunings import PIDTunings
+from tempserver.power import Power
+from tempserver.temperature import Temperature
+from tempserver.vessel import Vessel
 
 class Encoder(JSONEncoder):
     def sse(self, event, obj):
