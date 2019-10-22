@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 import configparser
-import connexion
 import flask
 import logging
 import os
 import sys
-import threading
-import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import stream_with_context
-from gpiozero import LED
 from queue import Queue
 from simple_pid import PID
 
