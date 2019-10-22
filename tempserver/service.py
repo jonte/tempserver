@@ -82,6 +82,11 @@ for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith
 
     state["vessels"][vessel_id] = vessel
 
+def get_static(file):
+    template = resource_string(__name__, 'data/web-ui/static/' + file)
+    template = template.decode('utf-8')
+    return template
+
 def get_landing_page():
     template = resource_string(__name__, 'data/web-ui/templates/index.html')
     template = template.decode('utf-8')

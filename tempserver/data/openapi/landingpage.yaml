@@ -19,7 +19,17 @@ paths:
       responses:
         200:
           description: "Landing page"
-        400:
-          description: "Invalid vessel ID supplied"
-        404:
-          description: "Vessel not found"
+  /static/{file}:
+    get:
+      operationId: "tempserver.service.get_static"
+      produces:
+        - "text/html"
+      parameters:
+        - in: path
+          name: file
+          required: true
+          type: string
+          description: The static file to fetch
+      responses:
+        200:
+          description: "Static content"
