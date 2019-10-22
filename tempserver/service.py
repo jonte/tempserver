@@ -9,6 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import stream_with_context
 from queue import Queue
 from simple_pid import PID
+from pkg_resources import resource_string
 
 from tempserver.heater import (Heater, HeaterMode)
 from tempserver.jsonencoding import Encoder
@@ -82,7 +83,9 @@ for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith
     state["vessels"][vessel_id] = vessel
 
 def get_landing_page():
-    return flask.render_template('index.html')
+    template = resource_string(__name__, 'data/web-ui/templates/index.html')
+    template = template.decode('utf-8')
+    return flask.render_template_string(template)
 
 def get_vessel():
     return list(state["vessels"].values())
