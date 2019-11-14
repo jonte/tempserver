@@ -7,6 +7,8 @@ class W1ThermSensor:
     def __init__(self, type_=None, id=None):
         self.type = type_
         self.id = id
+        self.prev_temp = 40
 
     def get_temperature(self):
-        return random.uniform(0, 100)
+        self.prev_temp = self.prev_temp + random.uniform(-2, 2)
+        return self.prev_temp
