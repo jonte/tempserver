@@ -7,7 +7,7 @@ import sys
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import stream_with_context
-from queue import Queue
+from queue import (Queue, Full)
 from simple_pid import PID
 from pkg_resources import resource_string
 
@@ -16,6 +16,9 @@ from tempserver.jsonencoding import Encoder
 from tempserver.sensor import Sensor
 from tempserver.temperature import Temperature
 from tempserver.vessel import Vessel
+
+# Maximum length of a subscribers' queue before considering it inactive and eventually removing it
+MAX_SUBSCRIBER_QUEUE_LEN = 200
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 log = logging.getLogger('werkzeug')
@@ -46,7 +49,11 @@ stream_subscribers = []
 
 def notify_change(elem):
     for subscriber in stream_subscribers:
-        subscriber(elem)
+        try:
+            subscriber.put_nowait(elem)
+        except Full as e:
+            # Its likely full because nobody listens anymore. Clean up.
+            stream_subscribers.remove(subscriber)
 
 state = {
         "vessels": {}
@@ -96,10 +103,10 @@ def get_vessel():
     return list(state["vessels"].values())
 
 def get_stream():
-    queue = Queue()
+    queue = Queue(MAX_SUBSCRIBER_QUEUE_LEN)  # If many events are queued, most likely the listener has disconnected.
 
     def stream():
-        stream_subscribers.append(queue.put)
+        stream_subscribers.append(queue)
 
         while True:
             tag, message = queue.get()
