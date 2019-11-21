@@ -220,6 +220,47 @@ paths:
           description: "Successful operation"
         400:
           description: "Invalid status value"
+  /timer:
+    get:
+      tags:
+        - "timer"
+      summary: "Enumerate timers"
+      description: "Enumerate all timers"
+      operationId: "tempserver.service.get_timers"
+      produces:
+        - "application/json"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Timer"
+        400:
+          description: "Invalid status value"
+  /timer/{timerId}/running:
+    put:
+      tags:
+        - "timer"
+      summary: "Activate or deactivate a timer"
+      operationId: "tempserver.service.put_timer_running"
+      consumes:
+        - "application/json"
+      parameters:
+        - name: "timerId"
+          in: "path"
+          required: true
+          type: "string"
+        - name: "running"
+          in: "body"
+          required: true
+          schema:
+            type: "boolean"
+      responses:
+        200:
+          description: "Successful operation"
+        400:
+          description: "Invalid status value"
 
 securityDefinitions:
   api_key:
@@ -346,4 +387,26 @@ definitions:
         minimum: 0
         format: "int64"
         example: 5000
-
+  Timer:
+    type: "object"
+    properties:
+      id:
+        description: "Identifier of this timer"
+        type: "string"
+      name:
+        description: "Name of this timer - suitable for showing to the user"
+        type: "string"
+      remainingSec:
+        description: "Time currently remaining for this timer, in seconds"
+        type: "integer"
+        format: "int64"
+        example: 60
+      initialSec:
+        description: "The initial (starting) time of this timer, in seconds"
+        type: "integer"
+        format: "int64"
+        example: 60
+      running:
+        description: "Indicates whether the timer is active or not"
+        type: "boolean"
+        example: false

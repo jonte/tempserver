@@ -7,6 +7,7 @@ from tempserver.heater import (Heater, HeaterMode)
 from tempserver.pidtunings import PIDTunings
 from tempserver.power import Power
 from tempserver.temperature import Temperature
+from tempserver.timer import Timer
 from tempserver.vessel import Vessel
 
 
@@ -58,5 +59,13 @@ class Encoder(JSONEncoder):
                 return {"mode:" "PID"}
             else:
                 raise TypeError("Illegal heater mode")
+        if isinstance(obj, Timer):
+            return {
+                "id": obj.id,
+                "name": obj.name,
+                "initialTime": obj.initial_time,
+                "remainingTime": obj.remaining_time,
+                "running": obj.running
+            }
         else:
             return JSONEncoder.default(self, obj)

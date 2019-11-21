@@ -15,6 +15,7 @@ from tempserver.heater import (Heater, HeaterMode)
 from tempserver.jsonencoding import Encoder
 from tempserver.sensor import Sensor
 from tempserver.temperature import Temperature
+from tempserver.timer import Timer
 from tempserver.vessel import Vessel
 
 # Maximum length of a subscribers' queue before considering it inactive and eventually removing it
@@ -205,6 +206,22 @@ def get_vessel_pid(vesselId):
     vessel_ = state["vessels"][vesselId]
 
     return vessel_.pid
+
+
+timers = [
+    Timer(apsched, notify_change, "Cascade", 60 * 60),
+    Timer(apsched, notify_change, "Centennial", 60 * 30)
+]
+
+
+def get_timers():
+    return timers
+
+
+def put_timer_running(timerId, running):
+    for timer in timers:
+        if timer.id == timerId:
+            timer.set_running(running)
 
 
 def verify_api_key(apikey, required_scopes=None):
