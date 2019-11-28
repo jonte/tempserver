@@ -13,6 +13,9 @@ class Timer:
 
         Timer._next_available_id += 1
 
+    def __del__(self):
+        self.notify_change((self.id, "removed"))
+
     def set_name(self, name):
         if name == self.name:
             return

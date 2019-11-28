@@ -208,14 +208,26 @@ def get_vessel_pid(vesselId):
     return vessel_.pid
 
 
-timers = [
-    Timer(apsched, notify_change, "Cascade", 60 * 60),
-    Timer(apsched, notify_change, "Centennial", 60 * 30)
-]
+timers = []
 
 
 def get_timers():
     return timers
+
+
+def post_timer(params):
+    t = Timer(apsched, notify_change, params["name"], params["initialSec"])
+    timers.append(t)
+    return t
+
+
+def delete_timer(id):
+    ret = 400
+    for t in timers:
+        if t.id == id.id:
+            timers.remove(t)
+            ret = 200
+    return ret
 
 
 def put_timer_running(timerId, running):

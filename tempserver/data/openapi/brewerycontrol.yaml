@@ -238,6 +238,46 @@ paths:
               $ref: "#/definitions/Timer"
         400:
           description: "Invalid status value"
+    post:
+      tags:
+        - "timer"
+      summary: "Create new timer"
+      description: "Create new timer"
+      operationId: "tempserver.service.post_timer"
+      produces:
+        - "application/json"
+      parameters:
+        - name: "params"
+          in: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/TimerNew"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/Timer"
+        400:
+          description: "Invalid timer parameters"
+    delete:
+      tags:
+        - "timer"
+      summary: "Delete timer"
+      description: "Delete timer"
+      operationId: "tempserver.service.delete_timer"
+      produces:
+        - "application/json"
+      parameters:
+        - name: "id"
+          in: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/TimerId"
+      responses:
+        200:
+          description: "Successful operation"
+        400:
+          description: "Invalid timer parameters"
   /timer/{timerId}/running:
     put:
       tags:
@@ -396,6 +436,7 @@ definitions:
       name:
         description: "Name of this timer - suitable for showing to the user"
         type: "string"
+        example: "My timer"
       remainingSec:
         description: "Time currently remaining for this timer, in seconds"
         type: "integer"
@@ -410,3 +451,22 @@ definitions:
         description: "Indicates whether the timer is active or not"
         type: "boolean"
         example: false
+  TimerNew:
+    type: "object"
+    properties:
+      name:
+        description: "Name of this timer - suitable for showing to the user"
+        type: "string"
+        example: "My timer"
+      initialSec:
+        description: "The initial (starting) time of this timer, in seconds"
+        type: "integer"
+        format: "int64"
+        example: 60
+  TimerId:
+    type: "object"
+    properties:
+      id:
+        description: "Timer ID"
+        type: "string"
+        example: "timer-0"
