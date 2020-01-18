@@ -13,8 +13,8 @@ else:
 
 
 class Sensor:
-    def __init__(self, id_=None, name="Unknown", setpoint=10, scheduler=None, sensor_id="", pid=None,
-                 notify_change=None):
+    def __init__(self, id_=None, name="Unknown", setpoint=10, scheduler=None,
+            sensor_id="", temp_offset=0.0, pid=None, notify_change=None):
         self.temperature = Temperature(0)
         self.name = name
         self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id)
@@ -30,6 +30,8 @@ class Sensor:
         if sensor_id == "":
             logging.warning("Sensor ID for %s is blank - using first available sensor" % name)
         logging.debug("Sensor ID for %s: %s" % (name, sensor_id))
+
+        self.w1_sensor.set_offset(temp_offset)
 
     def add_heating_stage(self, name, time_, temp):
         id_ = 0
