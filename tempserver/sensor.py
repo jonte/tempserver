@@ -13,11 +13,11 @@ else:
 
 
 class Sensor:
-    def __init__(self, id_=None, name="Unknown", setpoint=10, scheduler=None, sensor_id="", pid=None,
-                 notify_change=None):
+    def __init__(self, id_=None, name="Unknown", setpoint=10, scheduler=None,
+            sensor_id="", temp_offset=0.0, pid=None, notify_change=None):
         self.temperature = Temperature(0)
         self.name = name
-        self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id)
+        self.w1_sensor = W1ThermSensor(W1ThermSensor.THERM_SENSOR_DS18B20, sensor_id, offset = temp_offset)
         self.setpoint = setpoint
         self.tempHistory = deque(maxlen=500)
         self.heating_stages = []

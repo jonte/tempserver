@@ -4,7 +4,7 @@ import random
 class W1ThermSensor:
     THERM_SENSOR_DS18B20 = "ds18b20"
 
-    def __init__(self, type_=None, id=None):
+    def __init__(self, type_=None, id=None, offset=0.0, offset_unit=None):
         self.type = type_
         self.id = id
         self.prev_temp = 40

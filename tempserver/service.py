@@ -75,14 +75,20 @@ def populate_vessels():
         # since the PID objects are used by both Sensor and Heater.
         pid.output = 0
 
+        sensor_id = config.get("vessels/" + vessel_id, "sensor_id", fallback="")
+        temp_offset = float(config.get("vessels/" + vessel_id + "/sensor/" + sensor_id,
+            "temp_offset", fallback=0.0))
+        gpio_pin = config.get("vessels/" + vessel_id + "/heater", "gpio_pin")
+
         sensor = Sensor(name=name,
                         id_=vessel_id,
                         scheduler=apsched,
-                        sensor_id=config.get("vessels/" + vessel_id, "sensor_id", fallback=""),
+                        sensor_id=sensor_id,
+                        temp_offset=temp_offset,
                         pid=pid,
                         notify_change=notify_change)
 
-        heater = Heater(config.get("vessels/" + vessel_id + "/heater", "gpio_pin"),
+        heater = Heater(gpio_pin,
                         name,
                         id_=vessel_id,
                         sensor=sensor,

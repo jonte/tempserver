@@ -14,6 +14,9 @@ d = 200
 sensor_id = 03119779ba13
 name = Mash liquor tank
 
+[vessels/mlt/sensor/03119779ba13]
+temp_offset = 0.0
+
 [vessels/mlt/heater]
 gpio_pin = 17
 
