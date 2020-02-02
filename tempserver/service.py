@@ -13,6 +13,7 @@ from pkg_resources import resource_string
 
 from tempserver.heater import (Heater, HeaterMode)
 from tempserver.jsonencoding import Encoder
+from tempserver.pump import (Pump, PumpMode)
 from tempserver.sensor import Sensor
 from tempserver.temperature import Temperature
 from tempserver.vessel import Vessel
@@ -58,38 +59,53 @@ def notify_change(elem):
 
 
 state = {
-    "vessels": {}
+    "vessels": {},
+    "pumps": {}
 }
 
-for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith("vessels/")]):
-    name = config.get("vessels/" + vessel_id, "name", fallback="Unknown name")
-    pid = PID(float(config.get("vessels/" + vessel_id + "/pid", "p")),
-              float(config.get("vessels/" + vessel_id + "/pid", "i")),
-              float(config.get("vessels/" + vessel_id + "/pid", "d")),
-              setpoint=1, output_limits=(0, 100))
+def populate_vessels():
+    for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith("vessels/")]):
+        name = config.get("vessels/" + vessel_id, "name", fallback="Unknown name")
+        pid = PID(float(config.get("vessels/" + vessel_id + "/pid", "p")),
+                  float(config.get("vessels/" + vessel_id + "/pid", "i")),
+                  float(config.get("vessels/" + vessel_id + "/pid", "d")),
+                  setpoint=1, output_limits=(0, 100))
 
-    # Monkey-patch last seen output value into PID objects. This is for convenience
-    # since the PID objects are used by both Sensor and Heater.
-    pid.output = 0
+        # Monkey-patch last seen output value into PID objects. This is for convenience
+        # since the PID objects are used by both Sensor and Heater.
+        pid.output = 0
 
-    sensor = Sensor(name=name,
-                    id_=vessel_id,
-                    scheduler=apsched,
-                    sensor_id=config.get("vessels/" + vessel_id, "sensor_id", fallback=""),
-                    pid=pid,
-                    notify_change=notify_change)
+        sensor = Sensor(name=name,
+                        id_=vessel_id,
+                        scheduler=apsched,
+                        sensor_id=config.get("vessels/" + vessel_id, "sensor_id", fallback=""),
+                        pid=pid,
+                        notify_change=notify_change)
 
-    heater = Heater(config.get("vessels/" + vessel_id + "/heater", "gpio_pin"),
-                    name,
-                    id_=vessel_id,
-                    sensor=sensor,
-                    pid=pid,
-                    scheduler=apsched,
-                    notify_change=notify_change)
+        heater = Heater(config.get("vessels/" + vessel_id + "/heater", "gpio_pin"),
+                        name,
+                        id_=vessel_id,
+                        sensor=sensor,
+                        pid=pid,
+                        scheduler=apsched,
+                        notify_change=notify_change)
 
-    vessel = Vessel(vessel_id, name, heater=heater, sensor=sensor, pid=pid)
+        vessel = Vessel(vessel_id, name, heater=heater, sensor=sensor, pid=pid)
 
-    state["vessels"][vessel_id] = vessel
+        state["vessels"][vessel_id] = vessel
+
+
+def populate_pumps():
+    for pump_id in set([x.split("/")[1] for x in config.sections() if x.startswith("pumps/")]):
+        name = config.get("pumps/" + pump_id, "name", fallback="Unknown name")
+
+        pump = Pump(config.get("pumps/" + pump_id , "gpio_pin"),
+                      name,
+                      id_=pump_id,
+                      scheduler=apsched,
+                      notify_change=notify_change)
+
+        state["pumps"][pump_id] = pump
 
 
 def get_static(file):
@@ -106,6 +122,31 @@ def get_landing_page():
 
 def get_vessel():
     return list(state["vessels"].values())
+
+def get_pump():
+    return list(state["pumps"].values())
+
+def get_pump_mode(pumpId):
+    if pumpId not in state["pumps"]:
+        return {"error": "Invalid pump ID"}, 400
+
+    pump_ = state["pumps"][pumpId]
+
+    return pump_.mode
+
+
+def put_pump_mode(pumpId, mode):
+    if pumpId not in state["pumps"]:
+        return {"error": "Invalid pump ID"}, 400
+
+    pump_ = state["pumps"][pumpId]
+    mode = PumpMode(mode["mode"])
+    if mode == PumpMode.ON:
+        pump_.enable()
+    elif mode == PumpMode.OFF:
+        pump_.disable()
+    else:
+        return {"error": "Invalid mode"}, 400
 
 
 def get_stream():
@@ -209,3 +250,6 @@ def get_vessel_pid(vesselId):
 
 def verify_api_key(apikey, required_scopes=None):
     return {"sub": "admin"}
+
+populate_vessels()
+populate_pumps()

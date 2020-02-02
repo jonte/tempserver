@@ -35,6 +35,66 @@ paths:
               $ref: "#/definitions/Vessel"
         400:
           description: "Invalid status value"
+  /pump:
+    get:
+      tags:
+      - "pump"
+      summary: "Enumerate pumps"
+      description: "Enumerate all pumps"
+      operationId: "tempserver.service.get_pump"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Pump"
+        400:
+          description: "Invalid status value"
+  /pump/{pumpId}/mode:
+    get:
+      tags:
+      - "pump"
+      summary: "Get mode for pump"
+      operationId: "tempserver.service.get_pump_mode"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "pumpId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "Successful operation"
+          schema:
+            $ref: "#/definitions/PumpMode"
+        400:
+          description: "Invalid status value"
+    put:
+      tags:
+      - "pump"
+      summary: "Set mode for pump"
+      operationId: "tempserver.service.put_pump_mode"
+      consumes:
+          - "application/json"
+      parameters:
+      - name: "pumpId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "mode"
+        in: "body"
+        required: true
+        schema:
+            $ref: "#/definitions/PumpMode"
+      responses:
+        200:
+          description: "Successful operation"
+        400:
+          description: "Invalid status value"
   /stream:
     get:
       tags:
@@ -245,6 +305,18 @@ definitions:
           $ref: "#/definitions/Temperature"
       pid_state:
           $ref: "#/definitions/PIDState"
+  Pump:
+    type: "object"
+    required:
+      - "id"
+      - "name"
+    properties:
+      id:
+        type: "string"
+        example: "pump1"
+      name:
+        type: "string"
+        example: "Pump 1"
   PIDTuning:
     type: "object"
     required:
@@ -325,6 +397,13 @@ definitions:
         type: "string"
         enum: ["OFF", "PID", "ON"]
         description: "Mode of operation for this vessel. Off means the vessel will never heat, pid means the vessel is controlled by its PID controller, on means the vessel is enabled and heats at full power"
+  PumpMode:
+    type: "object"
+    properties:
+      mode:
+        type: "string"
+        enum: ["OFF", "ON"]
+        description: "Mode of operation for this pump."
   ChartWindow:
     type: "object"
     properties:

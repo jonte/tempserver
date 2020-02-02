@@ -33,3 +33,7 @@ gpio_pin = 11
 p = 5
 i = 0.03
 d = 200
+
+[pumps/pump1]
+name = Pump 1
+gpio_pin = 27

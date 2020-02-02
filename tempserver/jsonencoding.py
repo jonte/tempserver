@@ -6,6 +6,7 @@ from simple_pid import PID
 from tempserver.heater import (Heater, HeaterMode)
 from tempserver.pidtunings import PIDTunings
 from tempserver.power import Power
+from tempserver.pump import (Pump, PumpMode)
 from tempserver.temperature import Temperature
 from tempserver.vessel import Vessel
 
@@ -37,6 +38,11 @@ class Encoder(JSONEncoder):
                 "id": obj.id,
                 "name": obj.name,
             }
+        if isinstance(obj, Pump):
+            return {
+                "id": obj.id,
+                "name": obj.name,
+            }
         if isinstance(obj, deque):
             return list(obj)
         if isinstance(obj, Temperature):
@@ -51,12 +57,19 @@ class Encoder(JSONEncoder):
                 "Kd": obj.Kd}
         if isinstance(obj, HeaterMode):
             if obj == HeaterMode.ON:
-                return {"mode:" "OFF"}
+                return {"mode": "OFF"}
             elif obj == HeaterMode.OFF:
-                return {"mode:" "ON"}
+                return {"mode": "ON"}
             elif obj == HeaterMode.PID:
-                return {"mode:" "PID"}
+                return {"mode": "PID"}
             else:
                 raise TypeError("Illegal heater mode")
+        if isinstance(obj, PumpMode):
+            if obj == PumpMode.ON:
+                return {"mode": "ON"}
+            elif obj == PumpMode.OFF:
+                return {"mode": "OFF"}
+            else:
+                raise TypeError("Illegal pump mode")
         else:
             return JSONEncoder.default(self, obj)
