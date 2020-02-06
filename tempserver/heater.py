@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 
@@ -16,8 +17,8 @@ class HeaterMode(Enum):
 
 
 class Heater:
-    def __init__(self, gpio_pin, name="Unknown", is_manual=False, sensor=None, pid=None, scheduler=None,
-                 notify_change=None, id_=None):
+    def __init__(self, gpio_pin, name="Unknown", is_manual=False, sensor=None,
+                 pid=None, notify_change=None, id_=None):
         self.heating = False
         self.mode = HeaterMode.OFF
         self.name = name
@@ -25,11 +26,11 @@ class Heater:
         self.heating_element = PWMOutputDevice(gpio_pin, frequency=1)
         self.sensor = sensor
         self.pid = pid
-        self.scheduler = scheduler
         self.notify_change = notify_change
         self.id = id_
-        self.scheduler.add_job(self.process_pid, 'interval', seconds=1, id="pid_iteration %s" % name)
         self.previous_level = -1
+
+        asyncio.create_task(self.process_pid())
 
     def _set_mode(self, mode):
         if mode == HeaterMode.OFF:
@@ -64,8 +65,9 @@ class Heater:
     def start_heating(self, level):
         return self._set_heating_level(level)
 
-    def process_pid(self):
+    async def process_pid(self):
         self._set_heating_level(self.pid.output / 100.0)
+        await asyncio.sleep(1)
 
     def publish_state(self):
         if self.notify_change:

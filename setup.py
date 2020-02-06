@@ -22,11 +22,10 @@ setuptools.setup(
     ],
     python_requires ='>=3.6',
     install_requires = [
-        "connexion[swagger-ui] >= 2.3.0, < 3",
+        "quart >= 0.10.0",
         "simple-pid >= 0.2.4",
         "gpiozero >= 1.5.1",
-        "w1thermsensor >= 1.3.0",
-        "APscheduler >= 3.6.1",
+        "w1thermsensor >= 1.3.0"
     ],
     entry_points = {
         'console_scripts': [

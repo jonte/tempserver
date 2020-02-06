@@ -1,6 +1,6 @@
 from collections import deque
-from flask import json
-from flask.json import JSONEncoder
+from quart.json import JSONEncoder
+from quart import json
 from simple_pid import PID
 
 from tempserver.heater import (Heater, HeaterMode)
@@ -12,11 +12,17 @@ from tempserver.vessel import Vessel
 
 
 class Encoder(JSONEncoder):
-    def sse(self, event, obj):
+    def sse(self, event, obj, app=None):
         s = "event: %s\ndata: %s\n\n" % (event, json.dumps(obj))
         return bytes(s, encoding="UTF-8")
 
     def default(self, obj):
+        if isinstance(obj, dict):
+            return json.dumps(obj)
+
+        if isinstance(obj, float):
+            return obj
+
         if isinstance(obj, Heater):
             return {
                 "active": obj.heating,

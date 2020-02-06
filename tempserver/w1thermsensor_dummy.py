@@ -1,4 +1,5 @@
 import random
+import time
 
 
 class W1ThermSensor:
@@ -10,5 +11,6 @@ class W1ThermSensor:
         self.prev_temp = 40
 
     def get_temperature(self):
+        time.sleep(1)  # Simulate blocking call in library
         self.prev_temp = self.prev_temp + random.uniform(-2, 2)
         return self.prev_temp

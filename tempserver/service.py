@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 import configparser
-import flask
 import logging
 import os
 import sys
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from flask import stream_with_context
-from queue import (Queue, Full)
+from asyncio import Queue, QueueFull
 from simple_pid import PID
 from pkg_resources import resource_string
+from quart import request, jsonify, Quart, stream_with_context,\
+                  render_template_string
 
 from tempserver.heater import (Heater, HeaterMode)
 from tempserver.jsonencoding import Encoder
@@ -18,15 +17,13 @@ from tempserver.sensor import Sensor
 from tempserver.temperature import Temperature
 from tempserver.vessel import Vessel
 
-# Maximum length of a subscribers' queue before considering it inactive and eventually removing it
+# Maximum length of a subscribers' queue before considering it inactive and
+# eventually removing it
 MAX_SUBSCRIBER_QUEUE_LEN = 200
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 log = logging.getLogger('werkzeug')
 log.setLevel(os.environ.get("LOGLEVEL", "WARNING"))
-
-apsched = BackgroundScheduler()
-apsched.start()
 
 config = configparser.ConfigParser()
 conf_candidates = ["~/.tempserver.conf", "/etc/tempserver.conf"]
@@ -41,10 +38,9 @@ for candidate in conf_candidates:
         break
 
 if not config_read:
-    print("Failed to read config. Tried the following locations: " + ', '.join(conf_candidates))
+    print('Failed to read config. Tried the following locations: ' +
+          ', '.join(conf_candidates))
     sys.exit(-1)
-
-encoder = Encoder()
 
 stream_subscribers = []
 
@@ -53,7 +49,7 @@ def notify_change(elem):
     for subscriber in stream_subscribers:
         try:
             subscriber.put_nowait(elem)
-        except Full:
+        except QueueFull:
             # Its likely full because nobody listens anymore. Clean up.
             stream_subscribers.remove(subscriber)
 
@@ -63,26 +59,33 @@ state = {
     "pumps": {}
 }
 
+
 def populate_vessels():
-    for vessel_id in set([x.split("/")[1] for x in config.sections() if x.startswith("vessels/")]):
-        name = config.get("vessels/" + vessel_id, "name", fallback="Unknown name")
+    config_sections = filter(lambda x: x.startswith("vessels/"),
+                             config.sections())
+    vessels = [x.split("/")[1] for x in config_sections]
+
+    for vessel_id in set(vessels):
+        name = config.get("vessels/" + vessel_id,
+                          "name", fallback="Unknown name")
         pid = PID(float(config.get("vessels/" + vessel_id + "/pid", "p")),
                   float(config.get("vessels/" + vessel_id + "/pid", "i")),
                   float(config.get("vessels/" + vessel_id + "/pid", "d")),
                   setpoint=1, output_limits=(0, 100))
 
-        # Monkey-patch last seen output value into PID objects. This is for convenience
-        # since the PID objects are used by both Sensor and Heater.
+        # Monkey-patch last seen output value into PID objects. This is for
+        # convenience since the PID objects are used by both Sensor and Heater.
         pid.output = 0
 
-        sensor_id = config.get("vessels/" + vessel_id, "sensor_id", fallback="")
-        temp_offset = float(config.get("vessels/" + vessel_id + "/sensor/" + sensor_id,
-            "temp_offset", fallback=0.0))
+        sensor_id = config.get("vessels/" + vessel_id,
+                               "sensor_id", fallback="")
+        temp_offset = float(config.get("vessels/" + vessel_id +
+                                       "/sensor/" + sensor_id,
+                                       "temp_offset", fallback=0.0))
         gpio_pin = config.get("vessels/" + vessel_id + "/heater", "gpio_pin")
 
         sensor = Sensor(name=name,
                         id_=vessel_id,
-                        scheduler=apsched,
                         sensor_id=sensor_id,
                         temp_offset=temp_offset,
                         pid=pid,
@@ -93,169 +96,177 @@ def populate_vessels():
                         id_=vessel_id,
                         sensor=sensor,
                         pid=pid,
-                        scheduler=apsched,
                         notify_change=notify_change)
 
-        vessel = Vessel(vessel_id, name, heater=heater, sensor=sensor, pid=pid)
+        vessel = Vessel(vessel_id,
+                        name,
+                        heater=heater,
+                        sensor=sensor,
+                        pid=pid)
 
         state["vessels"][vessel_id] = vessel
 
 
 def populate_pumps():
-    for pump_id in set([x.split("/")[1] for x in config.sections() if x.startswith("pumps/")]):
+    config_sections = filter(lambda x: x.startswith("pumps/"),
+                             config.sections())
+    pumps = [x.split("/")[1] for x in config_sections]
+
+    for pump_id in set(pumps):
         name = config.get("pumps/" + pump_id, "name", fallback="Unknown name")
 
-        pump = Pump(config.get("pumps/" + pump_id , "gpio_pin"),
-                      name,
-                      id_=pump_id,
-                      scheduler=apsched,
-                      notify_change=notify_change)
+        pump = Pump(config.get("pumps/" + pump_id, "gpio_pin"),
+                    name,
+                    id_=pump_id,
+                    notify_change=notify_change)
 
         state["pumps"][pump_id] = pump
 
 
-def get_static(file):
-    template = resource_string(__name__, 'data/web-ui/static/' + file)
-    template = template.decode('utf-8')
-    return template
+class TemperatureService():
+    app = Quart(__name__)
+    app.json_encoder = Encoder
+    encoder = Encoder()
 
+    @app.before_serving
+    def initialize():
+        # We launch this from qithin Quart to ensure we get the same event loop
+        populate_vessels()
+        populate_pumps()
 
-def get_landing_page():
-    template = resource_string(__name__, 'data/web-ui/templates/index.html')
-    template = template.decode('utf-8')
-    return flask.render_template_string(template)
+    @app.route("/v1/vessel")
+    async def vessel():
+        response = list(state["vessels"].values())
+        return jsonify(response)
 
+    @app.route("/v1/vessel/<vesselId>/temperature")
+    async def vessel_temperature(vesselId):
+        if vesselId not in state["vessels"]:
+            return {"error": "Invalid vessel ID"}, 400
 
-def get_vessel():
-    return list(state["vessels"].values())
+        vessel_ = state["vessels"][vesselId]
+        response = vessel_.sensor.temperature
 
-def get_pump():
-    return list(state["pumps"].values())
+        return jsonify(response)
 
-def get_pump_mode(pumpId):
-    if pumpId not in state["pumps"]:
-        return {"error": "Invalid pump ID"}, 400
+    @app.route('/v1/vessel/<vesselId>/mode', methods=['GET', 'PUT'])
+    async def vessel_mode(vesselId):
+        if vesselId not in state['vessels']:
+            return {'error': 'Invalid vessel ID'}, 400
 
-    pump_ = state["pumps"][pumpId]
+        vessel_ = state['vessels'][vesselId]
 
-    return pump_.mode
+        if request.method == 'GET':
+            return jsonify(vessel_.heater.mode)
+        elif request.method == 'PUT':
+            mode = await request.get_json(force=True)
+            mode = HeaterMode(mode["mode"])
+            if mode == HeaterMode.ON:
+                vessel_.heater.enable()
+            elif mode == HeaterMode.OFF:
+                vessel_.heater.disable()
+            elif mode == HeaterMode.PID:
+                vessel_.heater.enable_pid()
+            else:
+                return {"error": "Invalid mode"}, 400
+            return {}, 200
+        else:
+            return {}, 405
 
+    @app.route('/v1/vessel/<vesselId>/pid', methods=['GET', 'PUT'])
+    async def vessel_pid(vesselId):
+        if vesselId not in state["vessels"]:
+            return {"error": "Invalid vessel ID"}, 400
 
-def put_pump_mode(pumpId, mode):
-    if pumpId not in state["pumps"]:
-        return {"error": "Invalid pump ID"}, 400
+        vessel_ = state["vessels"][vesselId]
 
-    pump_ = state["pumps"][pumpId]
-    mode = PumpMode(mode["mode"])
-    if mode == PumpMode.ON:
-        pump_.enable()
-    elif mode == PumpMode.OFF:
-        pump_.disable()
-    else:
-        return {"error": "Invalid mode"}, 400
+        if request.method == 'GET':
+            return jsonify(vessel_.pid)
+        elif request.method == 'PUT':
+            tunings = await request.get_json(force=True)
 
+            vessel_.pid.tunings = (
+                tunings["Kp"],
+                tunings["Ki"],
+                tunings["Kd"])
 
-def get_stream():
-    queue = Queue(MAX_SUBSCRIBER_QUEUE_LEN)  # If many events are queued, most likely the listener has disconnected.
+            vessel_.heater.publish_state()
+            return {}, 200
+        else:
+            return {}, 405
 
-    def stream():
-        stream_subscribers.append(queue)
+    @app.route('/v1/vessel/<vesselId>/setpoint', methods=['GET', 'PUT'])
+    async def vessel_setpoint(vesselId):
+        if vesselId not in state["vessels"]:
+            return {"error": "Invalid vessel ID"}, 400
 
-        while True:
-            tag, message = queue.get()
-            data = encoder.sse(tag, message)
-            yield data
+        vessel_ = state["vessels"][vesselId]
 
-    return flask.Response(stream_with_context(stream()), mimetype="text/event-stream")
+        if request.method == 'GET':
+            return jsonify(Temperature(vessel_.pid.setpoint))
+        elif request.method == 'PUT':
+            setpoint = await request.get_json(force=True)
+            vessel_.pid.setpoint = setpoint["temperature"]
+            vessel_.heater.publish_state()
+            return {}, 200
+        else:
+            return {}, 405
 
+    @app.route('/v1/pump/<pumpId>/mode', methods=['GET', 'PUT'])
+    async def pump_mode(pumpId):
+        if pumpId not in state["pumps"]:
+            return {"error": "Invalid pump ID"}, 400
 
-def post_vessel_chart(vesselId, window):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
+        pump_ = state["pumps"][pumpId]
 
-    vessel_ = state["vessels"][vesselId]
+        if request.method == 'GET':
+            return jsonify(pump_.mode)
+        elif request.method == 'PUT':
+            mode = await request.get_json(force=True)
+            mode = PumpMode(mode["mode"])
+            if mode == PumpMode.ON:
+                pump_.enable()
+            elif mode == PumpMode.OFF:
+                pump_.disable()
+            else:
+                return {"error": "Invalid mode"}, 400
+            return {}, 200
+        else:
+            return {}, 405
 
-    return vessel_.sensor.tempHistory
+    @app.route('/v1/pump')
+    def pump():
+        return jsonify(list(state["pumps"].values()))
 
+    @app.route('/v1/stream')
+    async def stream():
+        # If many events are queued, most likely the listener has disconnected.
+        queue = Queue(MAX_SUBSCRIBER_QUEUE_LEN)
 
-def get_vessel_temperature(vesselId):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
+        @stream_with_context
+        async def __stream():
+            stream_subscribers.append(queue)
 
-    vessel_ = state["vessels"][vesselId]
+            while True:
+                tag, message = await queue.get()
+                data = TemperatureService.encoder.sse(tag, message)
+                yield data
 
-    return vessel_.sensor.temperature
+        return __stream(), {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Transfer-Encoding': 'chunked',
+        }
 
+    @app.route("/")
+    async def get_landing_page():
+        template = resource_string(__name__,
+                                   'data/web-ui/templates/index.html')
+        template = template.decode('utf-8')
+        return await render_template_string(template)
 
-def get_vessel_mode(vesselId):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-
-    return vessel_.heater.mode
-
-
-def put_vessel_mode(vesselId, mode):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-    mode = HeaterMode(mode["mode"])
-    if mode == HeaterMode.ON:
-        vessel_.heater.enable()
-    elif mode == HeaterMode.OFF:
-        vessel_.heater.disable()
-    elif mode == HeaterMode.PID:
-        vessel_.heater.enable_pid()
-    else:
-        return {"error": "Invalid mode"}, 400
-
-
-def put_vessel_pid(vesselId, tunings):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-
-    vessel_.pid.tunings = (
-        tunings["Kp"],
-        tunings["Ki"],
-        tunings["Kd"])
-
-    vessel_.heater.publish_state()
-
-
-def put_vessel_setpoint(vesselId, setpoint):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-
-    vessel_.pid.setpoint = setpoint["temperature"]
-    vessel_.heater.publish_state()
-
-
-def get_vessel_setpoint(vesselId):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-
-    return Temperature(vessel_.pid.setpoint)
-
-
-def get_vessel_pid(vesselId):
-    if vesselId not in state["vessels"]:
-        return {"error": "Invalid vessel ID"}, 400
-
-    vessel_ = state["vessels"][vesselId]
-
-    return vessel_.pid
-
-
-def verify_api_key(apikey, required_scopes=None):
-    return {"sub": "admin"}
-
-populate_vessels()
-populate_pumps()
+    @app.route("/static/<file>")
+    async def get_static(file):
+        template = resource_string(__name__, 'data/web-ui/static/' + file)
+        template = template.decode('utf-8')
+        return template

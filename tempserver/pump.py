@@ -1,12 +1,13 @@
 from enum import Enum
 
+
 class PumpMode(Enum):
     OFF = "OFF"
     ON = "ON"
 
 
 class Pump:
-    def __init__(self, gpio_pin, name, id_ = None, scheduler = None, notify_change = None):
+    def __init__(self, gpio_pin, name, id_=None, notify_change=None):
         self.id = id_
         self.name = name
         self.mode = PumpMode.OFF
